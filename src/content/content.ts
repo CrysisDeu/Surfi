@@ -192,7 +192,7 @@ async function clickElement(selector: string): Promise<{ success: boolean; error
   return { success: false, error: 'Element is not clickable' }
 }
 
-// Type text into an input element
+// Type text into an input element with realistic keyboard simulation
 async function typeInElement(
   selector: string,
   value: string
@@ -203,13 +203,69 @@ async function typeInElement(
   }
 
   if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) {
+    // Focus the element first
     element.focus()
-    element.value = value
     
-    // Dispatch input event to trigger any listeners
+    // Clear existing value
+    element.value = ''
+    element.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }))
+    
+    // Type each character with keyboard events for better compatibility
+    for (const char of value) {
+      // Simulate keydown
+      element.dispatchEvent(new KeyboardEvent('keydown', {
+        key: char,
+        code: `Key${char.toUpperCase()}`,
+        bubbles: true,
+        cancelable: true
+      }))
+      
+      // Update value
+      element.value += char
+      
+      // Simulate input event (React listens for this)
+      element.dispatchEvent(new InputEvent('input', {
+        bubbles: true,
+        cancelable: true,
+        inputType: 'insertText',
+        data: char
+      }))
+      
+      // Simulate keyup
+      element.dispatchEvent(new KeyboardEvent('keyup', {
+        key: char,
+        code: `Key${char.toUpperCase()}`,
+        bubbles: true,
+        cancelable: true
+      }))
+      
+      // Small delay between keystrokes for realism
+      await new Promise(resolve => setTimeout(resolve, 10))
+    }
+    
+    // Final change event
+    element.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }))
+    
+    // For React controlled inputs, also try setting via native setter
+    const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+      window.HTMLInputElement.prototype, 'value'
+    )?.set || Object.getOwnPropertyDescriptor(
+      window.HTMLTextAreaElement.prototype, 'value'
+    )?.set
+    
+    if (nativeInputValueSetter) {
+      nativeInputValueSetter.call(element, value)
+      element.dispatchEvent(new Event('input', { bubbles: true }))
+    }
+    
+    return { success: true }
+  }
+
+  // Try contenteditable elements
+  if (element instanceof HTMLElement && element.isContentEditable) {
+    element.focus()
+    element.textContent = value
     element.dispatchEvent(new Event('input', { bubbles: true }))
-    element.dispatchEvent(new Event('change', { bubbles: true }))
-    
     return { success: true }
   }
 

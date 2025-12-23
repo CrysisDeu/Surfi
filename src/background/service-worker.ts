@@ -18,6 +18,105 @@ const DEFAULT_SETTINGS: Settings = {
   theme: 'dark',
 }
 
+// Tool definitions for the ReAct agent
+const BROWSER_TOOLS = [
+  {
+    toolSpec: {
+      name: 'click',
+      description: 'Click on an element on the page. Use CSS selectors to identify elements.',
+      inputSchema: {
+        json: {
+          type: 'object',
+          properties: {
+            selector: {
+              type: 'string',
+              description: 'CSS selector for the element to click (e.g., "button.submit", "#login-btn", "[data-testid=search]")'
+            }
+          },
+          required: ['selector']
+        }
+      }
+    }
+  },
+  {
+    toolSpec: {
+      name: 'type',
+      description: 'Type text into an input field, textarea, or other text input element.',
+      inputSchema: {
+        json: {
+          type: 'object',
+          properties: {
+            selector: {
+              type: 'string',
+              description: 'CSS selector for the input element'
+            },
+            value: {
+              type: 'string',
+              description: 'Text to type into the element'
+            }
+          },
+          required: ['selector', 'value']
+        }
+      }
+    }
+  },
+  {
+    toolSpec: {
+      name: 'scroll',
+      description: 'Scroll the page up or down by one viewport height.',
+      inputSchema: {
+        json: {
+          type: 'object',
+          properties: {
+            direction: {
+              type: 'string',
+              enum: ['up', 'down'],
+              description: 'Direction to scroll'
+            }
+          },
+          required: ['direction']
+        }
+      }
+    }
+  },
+  {
+    toolSpec: {
+      name: 'navigate',
+      description: 'Navigate to a different URL.',
+      inputSchema: {
+        json: {
+          type: 'object',
+          properties: {
+            url: {
+              type: 'string',
+              description: 'URL to navigate to'
+            }
+          },
+          required: ['url']
+        }
+      }
+    }
+  },
+  {
+    toolSpec: {
+      name: 'extract',
+      description: 'Extract text content from an element on the page.',
+      inputSchema: {
+        json: {
+          type: 'object',
+          properties: {
+            selector: {
+              type: 'string',
+              description: 'CSS selector for the element to extract text from. Leave empty to get all page content.'
+            }
+          },
+          required: []
+        }
+      }
+    }
+  }
+]
+
 // AWS Signature V4 utilities
 async function sha256(message: string): Promise<ArrayBuffer> {
   const encoder = new TextEncoder()
@@ -57,7 +156,6 @@ async function getSignatureKey(
   return hmacSha256(kService, 'aws4_request')
 }
 
-// URI encode a string according to AWS SigV4 rules (RFC 3986)
 function uriEncode(str: string, encodeSlash: boolean = true): string {
   return str.split('').map(char => {
     if ((char >= 'A' && char <= 'Z') ||
@@ -87,7 +185,6 @@ async function signAWSRequest(
   const amzDate = now.toISOString().replace(/[:-]|\.\d{3}/g, '').slice(0, 15) + 'Z'
   const dateStamp = amzDate.slice(0, 8)
 
-  // Add required headers
   const signedHeaders: Record<string, string> = {
     ...headers,
     'host': parsedUrl.host,
@@ -98,7 +195,6 @@ async function signAWSRequest(
     signedHeaders['x-amz-security-token'] = credentials.sessionToken
   }
 
-  // Create canonical request
   const sortedHeaderKeys = Object.keys(signedHeaders).sort()
   const canonicalHeaders = sortedHeaderKeys
     .map(key => `${key.toLowerCase()}:${signedHeaders[key].trim()}`)
@@ -106,9 +202,6 @@ async function signAWSRequest(
   const signedHeadersStr = sortedHeaderKeys.map(k => k.toLowerCase()).join(';')
   
   const payloadHash = toHex(await sha256(body))
-  
-  // For canonical URI, encode the path but preserve already-encoded characters
-  // AWS expects the encoded path to be re-encoded (e.g., %3A becomes %253A)
   const canonicalUri = uriEncode(parsedUrl.pathname, false)
   
   const canonicalRequest = [
@@ -120,7 +213,6 @@ async function signAWSRequest(
     payloadHash
   ].join('\n')
 
-  // Create string to sign
   const algorithm = 'AWS4-HMAC-SHA256'
   const credentialScope = `${dateStamp}/${region}/${service}/aws4_request`
   const stringToSign = [
@@ -130,11 +222,9 @@ async function signAWSRequest(
     toHex(await sha256(canonicalRequest))
   ].join('\n')
 
-  // Calculate signature
   const signingKey = await getSignatureKey(credentials.secretAccessKey, dateStamp, region, service)
   const signature = toHex(await hmacSha256(signingKey, stringToSign))
 
-  // Build authorization header
   const authorization = `${algorithm} Credential=${credentials.accessKeyId}/${credentialScope}, SignedHeaders=${signedHeadersStr}, Signature=${signature}`
 
   return {
@@ -150,13 +240,13 @@ chrome.action.onClicked.addListener((tab) => {
   }
 })
 
-// Handle streaming connections
+// Handle streaming connections (ReAct agent loop)
 chrome.runtime.onConnect.addListener((port) => {
   if (port.name === 'chat-stream') {
     port.onMessage.addListener(async (request) => {
       if (request.type === 'CHAT_MESSAGE_STREAM') {
         try {
-          await handleChatMessageStream(request as ChatRequest, port)
+          await handleAgentLoop(request as ChatRequest, port)
         } catch (error) {
           port.postMessage({ type: 'error', error: error instanceof Error ? error.message : 'Unknown error' })
         }
@@ -189,19 +279,16 @@ chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
   }
 })
 
-// Get settings from storage
 async function getSettings(): Promise<Settings> {
   const result = await chrome.storage.sync.get('settings')
   return result.settings || DEFAULT_SETTINGS
 }
 
-// Get active model configuration
 async function getActiveModel(): Promise<ModelConfig | undefined> {
   const settings = await getSettings()
   return settings.models.find((m) => m.id === settings.activeModelId)
 }
 
-// Check if model has required credentials
 function hasValidCredentials(model: ModelConfig): boolean {
   switch (model.provider) {
     case 'bedrock':
@@ -215,7 +302,224 @@ function hasValidCredentials(model: ModelConfig): boolean {
   }
 }
 
-// Handle chat messages
+// ReAct Agent Loop
+async function handleAgentLoop(request: ChatRequest, port: chrome.runtime.Port): Promise<void> {
+  const model = await getActiveModel()
+
+  if (!model) {
+    port.postMessage({ type: 'error', error: 'No model configured. Please configure a model in settings.' })
+    return
+  }
+
+  if (!hasValidCredentials(model)) {
+    port.postMessage({ type: 'error', error: 'Credentials not configured. Please add your API key or AWS credentials in settings.' })
+    return
+  }
+
+  // Get page context
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
+  let pageContext = ''
+  let interactiveElements: Array<{ tag: string; text: string; selector: string; type?: string }> = []
+  
+  if (tab?.id) {
+    try {
+      const context = await getPageContext(tab.id)
+      pageContext = `
+Current page information:
+- URL: ${context.url}
+- Title: ${context.title}
+- Content summary: ${context.content.substring(0, 3000)}
+${context.selectedText ? `- Selected text: ${context.selectedText}` : ''}
+`
+      interactiveElements = context.interactiveElements || []
+    } catch (error) {
+      console.warn('Could not get page context:', error)
+    }
+  }
+
+  const systemPrompt = `You are Browser AI, an autonomous browser agent that helps users interact with web pages.
+
+${pageContext}
+
+Available interactive elements on the page:
+${interactiveElements.slice(0, 30).map(el => `- ${el.tag}${el.type ? `[type=${el.type}]` : ''}: "${el.text}" (selector: ${el.selector})`).join('\n')}
+
+You have access to browser tools to interact with the page. When the user asks you to do something:
+1. Think about what actions are needed
+2. Use the appropriate tools to accomplish the task
+3. Report back on what you did and the result
+
+Be proactive - if the user asks to do something, actually DO it using your tools rather than just explaining how.
+Always use specific CSS selectors from the interactive elements list when possible.`
+
+  // Build conversation for the agent
+  const conversationMessages: Array<{ role: string; content: unknown[] }> = request.payload.messages.map((m) => ({
+    role: m.role === 'assistant' ? 'assistant' : 'user',
+    content: [{ text: m.content }]
+  }))
+
+  // Only use tools for Bedrock provider
+  if (model.provider !== 'bedrock') {
+    // Fallback for non-Bedrock providers
+    const response = await callModelAPI(model, [
+      { role: 'system', content: systemPrompt },
+      ...request.payload.messages
+    ])
+    port.postMessage({ type: 'chunk', content: response })
+    port.postMessage({ type: 'done' })
+    return
+  }
+
+  // ReAct loop for Bedrock with tool use
+  const MAX_ITERATIONS = 5
+  let iteration = 0
+  let fullResponse = ''
+
+  while (iteration < MAX_ITERATIONS) {
+    iteration++
+    
+    const response = await callBedrockWithTools(
+      model as BedrockModelConfig,
+      systemPrompt,
+      conversationMessages
+    )
+
+    // Check if model wants to use a tool
+    if (response.stopReason === 'tool_use') {
+      const toolUseBlocks = response.output?.message?.content?.filter(
+        (block: { toolUse?: unknown }) => block.toolUse
+      ) || []
+      
+      for (const block of toolUseBlocks) {
+        const toolUse = block.toolUse as { toolUseId: string; name: string; input: Record<string, unknown> }
+        const toolName = toolUse.name
+        const toolInput = toolUse.input
+        
+        // Send thinking to user
+        port.postMessage({ 
+          type: 'chunk', 
+          content: `\n🔧 Using tool: ${toolName}(${JSON.stringify(toolInput)})\n` 
+        })
+        fullResponse += `\n🔧 Using tool: ${toolName}(${JSON.stringify(toolInput)})\n`
+
+        // Execute the tool
+        let toolResult: { success: boolean; error?: string; content?: string }
+        
+        if (tab?.id) {
+          toolResult = await executeAction(tab.id, {
+            type: toolName as 'click' | 'type' | 'scroll' | 'navigate' | 'extract',
+            selector: toolInput.selector as string | undefined,
+            value: toolInput.value as string | undefined,
+            url: toolInput.url as string | undefined,
+            direction: toolInput.direction as 'up' | 'down' | undefined,
+          })
+        } else {
+          toolResult = { success: false, error: 'No active tab' }
+        }
+
+        // Report result
+        const resultMessage = toolResult.success 
+          ? `✅ Success${toolResult.content ? `: ${toolResult.content.substring(0, 500)}` : ''}`
+          : `❌ Failed: ${toolResult.error}`
+        
+        port.postMessage({ type: 'chunk', content: resultMessage + '\n' })
+        fullResponse += resultMessage + '\n'
+
+        // Add tool result to conversation
+        conversationMessages.push({
+          role: 'assistant',
+          content: (response.output?.message?.content || []) as unknown[]
+        })
+        conversationMessages.push({
+          role: 'user',
+          content: [{
+            toolResult: {
+              toolUseId: toolUse.toolUseId,
+              content: [{ text: resultMessage }]
+            }
+          }] as unknown[]
+        })
+      }
+    } else {
+      // Model finished (end_turn or stop_sequence)
+      const textContent = response.output?.message?.content?.find(
+        (block: { text?: string }) => block.text
+      )
+      if (textContent?.text) {
+        port.postMessage({ type: 'chunk', content: textContent.text })
+        fullResponse += textContent.text
+      }
+      break
+    }
+  }
+
+  if (iteration >= MAX_ITERATIONS) {
+    port.postMessage({ type: 'chunk', content: '\n\n⚠️ Reached maximum iterations. Stopping.' })
+  }
+
+  port.postMessage({ type: 'done' })
+}
+
+// Call Bedrock with tool definitions
+async function callBedrockWithTools(
+  model: BedrockModelConfig,
+  systemPrompt: string,
+  messages: Array<{ role: string; content: unknown[] }>
+): Promise<{
+  stopReason: string
+  output?: {
+    message?: {
+      content?: Array<{ text?: string; toolUse?: unknown }>
+    }
+  }
+}> {
+  const region = model.awsRegion
+  const modelId = model.model
+  const url = `https://bedrock-runtime.${region}.amazonaws.com/model/${encodeURIComponent(modelId)}/converse`
+
+  const body: Record<string, unknown> = {
+    messages,
+    system: [{ text: systemPrompt }],
+    toolConfig: {
+      tools: BROWSER_TOOLS
+    },
+    inferenceConfig: {
+      maxTokens: model.maxTokens || 4096,
+      temperature: model.temperature || 0.7,
+    },
+  }
+
+  const bodyString = JSON.stringify(body)
+  
+  const headers = await signAWSRequest(
+    'POST',
+    url,
+    { 'Content-Type': 'application/json' },
+    bodyString,
+    {
+      accessKeyId: model.awsAccessKeyId,
+      secretAccessKey: model.awsSecretAccessKey,
+      sessionToken: model.awsSessionToken,
+    },
+    region,
+    'bedrock'
+  )
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers,
+    body: bodyString,
+  })
+
+  if (!response.ok) {
+    const errorText = await response.text()
+    throw new Error(`Bedrock API error (${response.status}): ${errorText}`)
+  }
+
+  return await response.json()
+}
+
+// Non-agent chat handler (for simple questions)
 async function handleChatMessage(request: ChatRequest): Promise<ChatResponse> {
   const model = await getActiveModel()
 
@@ -227,7 +531,6 @@ async function handleChatMessage(request: ChatRequest): Promise<ChatResponse> {
     return { content: '', error: 'Credentials not configured. Please add your API key or AWS credentials in settings.' }
   }
 
-  // Get page context from the active tab
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
   let pageContext = ''
   
@@ -246,23 +549,9 @@ ${context.selectedText ? `- Selected text: ${context.selectedText}` : ''}
     }
   }
 
-  // Build messages for the API
   const systemPrompt = `You are Browser AI, a helpful assistant that helps users interact with web pages.
-You can:
-1. Answer questions about the current page content
-2. Help users find specific information on the page
-3. Suggest actions to take on the page (clicking, scrolling, typing)
-4. Summarize page content
-
 ${pageContext}
-
-When suggesting actions, format them as JSON like:
-{"action": "click", "selector": "button.submit"}
-{"action": "type", "selector": "input#search", "value": "search term"}
-{"action": "scroll", "direction": "down"}
-{"action": "navigate", "url": "https://example.com"}
-
-Be concise and helpful. If you're unsure about something on the page, say so.`
+Be concise and helpful.`
 
   const messages = [
     { role: 'system', content: systemPrompt },
@@ -284,7 +573,6 @@ Be concise and helpful. If you're unsure about something on the page, say so.`
   }
 }
 
-// Call the model API based on provider
 async function callModelAPI(
   model: ModelConfig,
   messages: Array<{ role: string; content: string }>
@@ -303,7 +591,6 @@ async function callModelAPI(
   }
 }
 
-// OpenAI API call
 async function callOpenAI(
   model: { apiEndpoint: string; apiKey: string; model: string; maxTokens?: number; temperature?: number },
   messages: Array<{ role: string; content: string }>
@@ -331,7 +618,6 @@ async function callOpenAI(
   return data.choices?.[0]?.message?.content || ''
 }
 
-// Anthropic API call
 async function callAnthropic(
   model: { apiEndpoint: string; apiKey: string; model: string; maxTokens?: number; temperature?: number },
   messages: Array<{ role: string; content: string }>
@@ -360,205 +646,14 @@ async function callAnthropic(
   return data.content?.[0]?.text || ''
 }
 
-// Handle streaming chat messages
-async function handleChatMessageStream(request: ChatRequest, port: chrome.runtime.Port): Promise<void> {
-  const model = await getActiveModel()
-
-  if (!model) {
-    port.postMessage({ type: 'error', error: 'No model configured. Please configure a model in settings.' })
-    return
-  }
-
-  if (!hasValidCredentials(model)) {
-    port.postMessage({ type: 'error', error: 'Credentials not configured. Please add your API key or AWS credentials in settings.' })
-    return
-  }
-
-  // Get page context from the active tab
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
-  let pageContext = ''
-  
-  if (tab?.id) {
-    try {
-      const context = await getPageContext(tab.id)
-      pageContext = `
-Current page information:
-- URL: ${context.url}
-- Title: ${context.title}
-- Content summary: ${context.content.substring(0, 2000)}...
-${context.selectedText ? `- Selected text: ${context.selectedText}` : ''}
-`
-    } catch (error) {
-      console.warn('Could not get page context:', error)
-    }
-  }
-
-  const systemPrompt = `You are Browser AI, a helpful assistant that helps users interact with web pages.
-You can:
-1. Answer questions about the current page content
-2. Help users find specific information on the page
-3. Suggest actions to take on the page (clicking, scrolling, typing)
-4. Summarize page content
-
-${pageContext}
-
-When suggesting actions, format them as JSON like:
-\`\`\`json
-{"action": "click", "selector": "button.submit"}
-\`\`\`
-\`\`\`json
-{"action": "type", "selector": "input#search", "value": "search term"}
-\`\`\`
-\`\`\`json
-{"action": "scroll", "direction": "down"}
-\`\`\`
-\`\`\`json
-{"action": "navigate", "url": "https://example.com"}
-\`\`\`
-
-Be concise and helpful. If you're unsure about something on the page, say so.`
-
-  const messages = [
-    { role: 'system', content: systemPrompt },
-    ...request.payload.messages.map((m) => ({
-      role: m.role,
-      content: m.content,
-    })),
-  ]
-
-  try {
-    // Use non-streaming API for all providers (streaming requires complex binary parsing for Bedrock)
-    const response = await callModelAPI(model, messages)
-    port.postMessage({ type: 'chunk', content: response })
-    port.postMessage({ type: 'done' })
-  } catch (error) {
-    console.error('API call failed:', error)
-    port.postMessage({ type: 'error', error: error instanceof Error ? error.message : 'Failed to get response from AI' })
-  }
-}
-
-// AWS Bedrock Streaming API call
-async function callBedrockStream(
-  model: BedrockModelConfig,
-  messages: Array<{ role: string; content: string }>,
-  port: chrome.runtime.Port
-): Promise<void> {
-  const region = model.awsRegion
-  const modelId = model.model
-  
-  // Bedrock streaming endpoint
-  const url = `https://bedrock-runtime.${region}.amazonaws.com/model/${encodeURIComponent(modelId)}/converse-stream`
-  
-  // Format messages for Bedrock Converse API
-  const systemMessages = messages.filter(m => m.role === 'system')
-  const conversationMessages = messages
-    .filter(m => m.role !== 'system')
-    .map(m => ({
-      role: m.role === 'assistant' ? 'assistant' : 'user',
-      content: [{ text: m.content }]
-    }))
-
-  const body: Record<string, unknown> = {
-    messages: conversationMessages,
-    inferenceConfig: {
-      maxTokens: model.maxTokens || 4096,
-      temperature: model.temperature || 0.7,
-    },
-  }
-
-  if (systemMessages.length > 0) {
-    body.system = systemMessages.map(m => ({ text: m.content }))
-  }
-
-  const bodyString = JSON.stringify(body)
-  
-  const headers = await signAWSRequest(
-    'POST',
-    url,
-    { 'Content-Type': 'application/json' },
-    bodyString,
-    {
-      accessKeyId: model.awsAccessKeyId,
-      secretAccessKey: model.awsSecretAccessKey,
-      sessionToken: model.awsSessionToken,
-    },
-    region,
-    'bedrock'
-  )
-
-  const response = await fetch(url, {
-    method: 'POST',
-    headers,
-    body: bodyString,
-  })
-
-  if (!response.ok) {
-    const errorText = await response.text()
-    throw new Error(`Bedrock API error (${response.status}): ${errorText}`)
-  }
-
-  if (!response.body) {
-    throw new Error('Response body is null')
-  }
-
-  // Read the event stream
-  const reader = response.body.getReader()
-  const decoder = new TextDecoder()
-  let buffer = ''
-
-  try {
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
-
-      buffer += decoder.decode(value, { stream: true })
-      
-      // Parse AWS event stream format
-      // Events are binary-encoded with headers and payload
-      // For simplicity, we'll look for JSON payloads
-      const lines = buffer.split('\n')
-      buffer = lines.pop() || '' // Keep incomplete line in buffer
-      
-      for (const line of lines) {
-        if (!line.trim()) continue
-        
-        // Try to extract JSON from the binary event stream
-        // AWS event stream format includes length-prefixed messages
-        // Look for contentBlockDelta events
-        try {
-          // Find JSON objects in the stream
-          const jsonMatch = line.match(/\{[^{}]*"contentBlockDelta"[^{}]*\{[^{}]*"text"[^{}]*\}[^{}]*\}/)
-          if (jsonMatch) {
-            const event = JSON.parse(jsonMatch[0])
-            const text = event.contentBlockDelta?.delta?.text
-            if (text) {
-              port.postMessage({ type: 'chunk', content: text })
-            }
-          }
-        } catch {
-          // Not valid JSON, continue
-        }
-      }
-    }
-  } finally {
-    reader.releaseLock()
-  }
-
-  port.postMessage({ type: 'done' })
-}
-
-// AWS Bedrock API call
 async function callBedrock(
   model: BedrockModelConfig,
   messages: Array<{ role: string; content: string }>
 ): Promise<string> {
   const region = model.awsRegion
   const modelId = model.model
-  
-  // Bedrock endpoint
   const url = `https://bedrock-runtime.${region}.amazonaws.com/model/${encodeURIComponent(modelId)}/converse`
   
-  // Format messages for Bedrock Converse API
   const systemMessages = messages.filter(m => m.role === 'system')
   const conversationMessages = messages
     .filter(m => m.role !== 'system')
@@ -575,14 +670,12 @@ async function callBedrock(
     },
   }
 
-  // Add system prompt if present
   if (systemMessages.length > 0) {
     body.system = systemMessages.map(m => ({ text: m.content }))
   }
 
   const bodyString = JSON.stringify(body)
   
-  // Sign the request with AWS Signature V4
   const headers = await signAWSRequest(
     'POST',
     url,
@@ -609,12 +702,9 @@ async function callBedrock(
   }
 
   const data = await response.json()
-  
-  // Parse Bedrock Converse response
   return data.output?.message?.content?.[0]?.text || ''
 }
 
-// Custom (OpenAI-compatible) API call
 async function callCustom(
   model: { apiEndpoint: string; apiKey: string; model: string; maxTokens?: number; temperature?: number },
   messages: Array<{ role: string; content: string }>
@@ -642,10 +732,9 @@ async function callCustom(
   return data.choices?.[0]?.message?.content || ''
 }
 
-// Get page context from content script
 async function getPageContext(
   tabId: number
-): Promise<{ url: string; title: string; content: string; selectedText?: string }> {
+): Promise<{ url: string; title: string; content: string; selectedText?: string; interactiveElements?: Array<{ tag: string; text: string; selector: string; type?: string }> }> {
   try {
     const response = await chrome.tabs.sendMessage(tabId, { type: 'GET_CONTEXT' })
     return response
@@ -659,11 +748,10 @@ async function getPageContext(
   }
 }
 
-// Execute action on page via content script
 async function executeAction(
   tabId: number,
-  action: { type: string; selector?: string; value?: string; url?: string }
-): Promise<{ success: boolean; error?: string }> {
+  action: { type: string; selector?: string; value?: string; url?: string; direction?: 'up' | 'down' }
+): Promise<{ success: boolean; error?: string; content?: string }> {
   try {
     const response = await chrome.tabs.sendMessage(tabId, {
       type: 'EXECUTE_ACTION',
@@ -678,7 +766,6 @@ async function executeAction(
   }
 }
 
-// Listen for installation
 chrome.runtime.onInstalled.addListener(() => {
   console.log('Browser AI extension installed')
   
