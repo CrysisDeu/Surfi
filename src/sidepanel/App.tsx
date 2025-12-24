@@ -9,6 +9,7 @@ function App() {
   const [isLoading, setIsLoading] = useState(false)
   const [streamingContent, setStreamingContent] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const portRef = useRef<chrome.runtime.Port | null>(null)
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -35,6 +36,7 @@ function App() {
     try {
       // Use streaming via chrome.runtime.connect
       const port = chrome.runtime.connect({ name: 'chat-stream' })
+      portRef.current = port
       
       let fullContent = ''
       
@@ -52,6 +54,7 @@ function App() {
           setMessages((prev) => [...prev, assistantMessage])
           setStreamingContent('')
           setIsLoading(false)
+          portRef.current = null
           port.disconnect()
         } else if (message.type === 'error') {
           const errorMessage: Message = {
@@ -63,11 +66,13 @@ function App() {
           setMessages((prev) => [...prev, errorMessage])
           setStreamingContent('')
           setIsLoading(false)
+          portRef.current = null
           port.disconnect()
         }
       })
 
       port.onDisconnect.addListener(() => {
+        portRef.current = null
         if (isLoading) {
           setIsLoading(false)
         }
@@ -96,6 +101,26 @@ function App() {
   const handleClearChat = () => {
     setMessages([])
     setStreamingContent('')
+  }
+
+  const handleStopAgent = () => {
+    if (portRef.current) {
+      // Add a message indicating the agent was stopped
+      if (streamingContent) {
+        const stoppedMessage: Message = {
+          id: (Date.now() + 1).toString(),
+          role: 'assistant',
+          content: streamingContent + '\n\n⏹️ *Agent stopped by user*',
+          timestamp: Date.now(),
+        }
+        setMessages((prev) => [...prev, stoppedMessage])
+      }
+      
+      portRef.current.disconnect()
+      portRef.current = null
+      setStreamingContent('')
+      setIsLoading(false)
+    }
   }
 
   return (
@@ -142,7 +167,11 @@ function App() {
         <div ref={messagesEndRef} />
       </div>
 
-      <ChatInput onSendMessage={handleSendMessage} isLoading={isLoading} />
+      <ChatInput 
+        onSendMessage={handleSendMessage} 
+        isLoading={isLoading} 
+        onStop={handleStopAgent}
+      />
     </div>
   )
 }

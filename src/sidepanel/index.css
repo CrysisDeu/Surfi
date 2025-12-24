@@ -327,6 +327,28 @@ body {
   cursor: not-allowed;
 }
 
+.stop-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 8px;
+  background-color: #f44336;
+  color: white;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.stop-button:hover {
+  background-color: #d32f2f;
+}
+
+.stop-button:active {
+  transform: scale(0.95);
+}
+
 .spinner {
   width: 16px;
   height: 16px;
