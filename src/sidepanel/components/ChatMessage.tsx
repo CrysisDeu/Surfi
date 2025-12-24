@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import ReactMarkdown from 'react-markdown'
 import type { Message } from '../../types'
 
 interface Action {
@@ -106,7 +107,9 @@ export function ChatMessage({ message, onExecuteAction }: ChatMessageProps) {
         {isUser ? '👤' : '🤖'}
       </div>
       <div className="message-content">
-        <div className="message-text">{text}</div>
+        <div className="message-text">
+          <ReactMarkdown>{text}</ReactMarkdown>
+        </div>
         
         {actions.length > 0 && (
           <div className="message-actions">

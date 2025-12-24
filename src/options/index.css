@@ -194,6 +194,20 @@ body {
 }
 
 /* Presets Grid */
+.settings-group {
+  background: var(--bg-secondary);
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.settings-group .form-group {
+  margin-bottom: 0;
+}
+
+.settings-group input[type="number"] {
+  width: 100px;
+}
+
 .presets-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
@@ -370,10 +384,27 @@ body {
 }
 
 /* Profile Helper */
+.credential-paste-section {
+  margin: 16px 0;
+  padding: 12px;
+  background: #16213e;
+  border-radius: 8px;
+  border: 1px dashed #444;
+}
+
+.credential-paste-box {
+  animation: fadeIn 0.2s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 .profile-helper {
   margin-top: 16px;
   padding-top: 16px;
-  border-top: 1px solid var(--border);
+  border-top: 1px solid #333;
 }
 
 .btn-link {

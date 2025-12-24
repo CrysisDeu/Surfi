@@ -254,6 +254,29 @@ function App() {
         </section>
 
         <section className="section">
+          <h2>Agent Settings</h2>
+          <div className="settings-group">
+            <div className="form-group">
+              <label htmlFor="maxIterations">Max Iterations</label>
+              <input
+                type="number"
+                id="maxIterations"
+                value={settings.maxIterations || 10}
+                onChange={(e) => {
+                  const value = parseInt(e.target.value) || 10
+                  saveSettings({ ...settings, maxIterations: Math.max(1, Math.min(50, value)) })
+                }}
+                min="1"
+                max="50"
+              />
+              <small className="form-hint">
+                Maximum number of tool use iterations per message (1-50). Higher values allow more complex tasks but may cost more tokens.
+              </small>
+            </div>
+          </div>
+        </section>
+
+        <section className="section">
           <h2>Quick Add Presets</h2>
           <div className="presets-grid">
             <button
@@ -396,6 +419,30 @@ function App() {
   )
 }
 
+// Parse AWS credentials from export statements blob
+function parseAWSCredentialsBlob(blob: string): {
+  awsAccessKeyId?: string
+  awsSecretAccessKey?: string
+  awsSessionToken?: string
+} {
+  const result: {
+    awsAccessKeyId?: string
+    awsSecretAccessKey?: string
+    awsSessionToken?: string
+  } = {}
+
+  // Match patterns like: export AWS_ACCESS_KEY_ID=value or AWS_ACCESS_KEY_ID=value
+  const accessKeyMatch = blob.match(/(?:export\s+)?AWS_ACCESS_KEY_ID=([^\s\n]+)/)
+  const secretKeyMatch = blob.match(/(?:export\s+)?AWS_SECRET_ACCESS_KEY=([^\s\n]+)/)
+  const sessionTokenMatch = blob.match(/(?:export\s+)?AWS_SESSION_TOKEN=([^\s\n]+)/)
+
+  if (accessKeyMatch) result.awsAccessKeyId = accessKeyMatch[1]
+  if (secretKeyMatch) result.awsSecretAccessKey = secretKeyMatch[1]
+  if (sessionTokenMatch) result.awsSessionToken = sessionTokenMatch[1]
+
+  return result
+}
+
 function ModelEditor({
   formData: initialFormData,
   onSave,
@@ -411,6 +458,22 @@ function ModelEditor({
   const [showSecrets, setShowSecrets] = useState(false)
   const [showProfileHelper, setShowProfileHelper] = useState(false)
   const [profileName, setProfileName] = useState('default')
+  const [credentialBlob, setCredentialBlob] = useState('')
+  const [showCredentialPaste, setShowCredentialPaste] = useState(false)
+
+  const handleParseCredentials = () => {
+    const parsed = parseAWSCredentialsBlob(credentialBlob)
+    if (parsed.awsAccessKeyId || parsed.awsSecretAccessKey || parsed.awsSessionToken) {
+      setFormData({
+        ...formData,
+        awsAccessKeyId: parsed.awsAccessKeyId || formData.awsAccessKeyId,
+        awsSecretAccessKey: parsed.awsSecretAccessKey || formData.awsSecretAccessKey,
+        awsSessionToken: parsed.awsSessionToken || formData.awsSessionToken,
+      })
+      setCredentialBlob('')
+      setShowCredentialPaste(false)
+    }
+  }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -510,6 +573,71 @@ function ModelEditor({
                   <option value="ap-southeast-1">Asia Pacific (Singapore)</option>
                   <option value="ap-southeast-2">Asia Pacific (Sydney)</option>
                 </select>
+              </div>
+
+              {/* Paste Credentials Section */}
+              <div className="credential-paste-section">
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setShowCredentialPaste(!showCredentialPaste)}
+                  style={{ width: '100%', marginBottom: showCredentialPaste ? '12px' : '0' }}
+                >
+                  📋 {showCredentialPaste ? 'Hide' : 'Paste'} AWS Credentials
+                </button>
+                
+                {showCredentialPaste && (
+                  <div className="credential-paste-box">
+                    <label htmlFor="credentialBlob" style={{ fontSize: '12px', marginBottom: '4px', display: 'block' }}>
+                      Paste your AWS credential export commands:
+                    </label>
+                    <textarea
+                      id="credentialBlob"
+                      value={credentialBlob}
+                      onChange={(e) => setCredentialBlob(e.target.value)}
+                      placeholder={`export AWS_ACCESS_KEY_ID=AKIA...
+export AWS_SECRET_ACCESS_KEY=...
+export AWS_SESSION_TOKEN=...`}
+                      rows={5}
+                      style={{
+                        width: '100%',
+                        fontFamily: 'monospace',
+                        fontSize: '11px',
+                        padding: '8px',
+                        borderRadius: '4px',
+                        border: '1px solid #444',
+                        backgroundColor: '#1a1a2e',
+                        color: '#e0e0e0',
+                        resize: 'vertical',
+                      }}
+                    />
+                    <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+                      <button
+                        type="button"
+                        className="btn btn-primary"
+                        onClick={handleParseCredentials}
+                        disabled={!credentialBlob.trim()}
+                        style={{ flex: 1 }}
+                      >
+                        ✓ Apply Credentials
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        onClick={() => {
+                          setCredentialBlob('')
+                          setShowCredentialPaste(false)
+                        }}
+                        style={{ flex: 1 }}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                    <small className="form-hint" style={{ marginTop: '8px', display: 'block' }}>
+                      Paste the output from <code>aws configure export-credentials --format env</code>
+                    </small>
+                  </div>
+                )}
               </div>
 
               <div className="form-group">

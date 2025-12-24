@@ -177,6 +177,9 @@ async function clickElement(selector: string): Promise<{ success: boolean; error
     return { success: false, error: `Element not found: ${selector}` }
   }
 
+  // Highlight the element
+  highlightElement(selector)
+
   // Scroll element into view
   element.scrollIntoView({ behavior: 'smooth', block: 'center' })
   
@@ -186,13 +189,18 @@ async function clickElement(selector: string): Promise<{ success: boolean; error
   // Click the element
   if (element instanceof HTMLElement) {
     element.click()
+    console.log(`[Browser AI] Clicked element: ${selector}`)
+    
+    // Wait for page to react to click (important for SPA navigation/data loading)
+    await new Promise((resolve) => setTimeout(resolve, 1000))
+    
     return { success: true }
   }
 
   return { success: false, error: 'Element is not clickable' }
 }
 
-// Type text into an input element with realistic keyboard simulation
+// Type text into an input element - multiple methods for maximum compatibility
 async function typeInElement(
   selector: string,
   value: string
@@ -202,61 +210,61 @@ async function typeInElement(
     return { success: false, error: `Element not found: ${selector}` }
   }
 
+  // Highlight the element so user can see what's being interacted with
+  highlightElement(selector)
+
   if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) {
     // Focus the element first
     element.focus()
+    element.select() // Select all existing text
     
-    // Clear existing value
-    element.value = ''
-    element.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }))
+    // Method 1: Try execCommand (works on some browsers)
+    const execSuccess = document.execCommand('insertText', false, value)
     
-    // Type each character with keyboard events for better compatibility
-    for (const char of value) {
-      // Simulate keydown
-      element.dispatchEvent(new KeyboardEvent('keydown', {
-        key: char,
-        code: `Key${char.toUpperCase()}`,
-        bubbles: true,
-        cancelable: true
-      }))
+    if (!execSuccess) {
+      // Method 2: Use native setter + dispatch events (for React)
+      const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+        element instanceof HTMLInputElement 
+          ? window.HTMLInputElement.prototype 
+          : window.HTMLTextAreaElement.prototype, 
+        'value'
+      )?.set
       
-      // Update value
-      element.value += char
+      if (nativeInputValueSetter) {
+        nativeInputValueSetter.call(element, value)
+      } else {
+        element.value = value
+      }
       
-      // Simulate input event (React listens for this)
-      element.dispatchEvent(new InputEvent('input', {
-        bubbles: true,
-        cancelable: true,
-        inputType: 'insertText',
-        data: char
-      }))
+      // Dispatch React-compatible events
+      element.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }))
+      element.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }))
       
-      // Simulate keyup
-      element.dispatchEvent(new KeyboardEvent('keyup', {
-        key: char,
-        code: `Key${char.toUpperCase()}`,
-        bubbles: true,
-        cancelable: true
-      }))
-      
-      // Small delay between keystrokes for realism
-      await new Promise(resolve => setTimeout(resolve, 10))
+      // Also try keyboard events for apps that listen to those
+      for (const char of value) {
+        element.dispatchEvent(new KeyboardEvent('keydown', {
+          key: char,
+          bubbles: true,
+          cancelable: true
+        }))
+        element.dispatchEvent(new KeyboardEvent('keypress', {
+          key: char,
+          bubbles: true,
+          cancelable: true
+        }))
+        element.dispatchEvent(new KeyboardEvent('keyup', {
+          key: char,
+          bubbles: true,
+          cancelable: true
+        }))
+      }
     }
     
-    // Final change event
-    element.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }))
+    // Also dispatch blur to trigger validation
+    await new Promise(resolve => setTimeout(resolve, 100))
+    element.dispatchEvent(new Event('blur', { bubbles: true }))
     
-    // For React controlled inputs, also try setting via native setter
-    const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
-      window.HTMLInputElement.prototype, 'value'
-    )?.set || Object.getOwnPropertyDescriptor(
-      window.HTMLTextAreaElement.prototype, 'value'
-    )?.set
-    
-    if (nativeInputValueSetter) {
-      nativeInputValueSetter.call(element, value)
-      element.dispatchEvent(new Event('input', { bubbles: true }))
-    }
+    console.log(`[Browser AI] Typed "${value}" into ${selector}, current value: "${element.value}"`)
     
     return { success: true }
   }
@@ -264,8 +272,17 @@ async function typeInElement(
   // Try contenteditable elements
   if (element instanceof HTMLElement && element.isContentEditable) {
     element.focus()
-    element.textContent = value
+    
+    // Select all and replace
+    const selection = window.getSelection()
+    const range = document.createRange()
+    range.selectNodeContents(element)
+    selection?.removeAllRanges()
+    selection?.addRange(range)
+    
+    document.execCommand('insertText', false, value)
     element.dispatchEvent(new Event('input', { bubbles: true }))
+    
     return { success: true }
   }
 

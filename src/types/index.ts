@@ -55,6 +55,7 @@ export interface Settings {
   activeModelId: string
   models: ModelConfig[]
   theme: 'light' | 'dark' | 'system'
+  maxIterations?: number // Max tool use iterations for the agent (default: 10)
 }
 
 export interface PageContext {

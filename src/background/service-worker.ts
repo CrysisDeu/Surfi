@@ -114,7 +114,7 @@ const BROWSER_TOOLS = [
         }
       }
     }
-  }
+  },
 ]
 
 // AWS Signature V4 utilities
@@ -371,7 +371,8 @@ Always use specific CSS selectors from the interactive elements list when possib
   }
 
   // ReAct loop for Bedrock with tool use
-  const MAX_ITERATIONS = 5
+  const settings = await getSettings()
+  const MAX_ITERATIONS = settings.maxIterations || 10
   let iteration = 0
   let fullResponse = ''
 
