@@ -455,18 +455,35 @@ export function extractDOM(): SerializedDOM {
 
 /**
  * Get element by node ID
+ * Returns undefined if element is no longer in the DOM (stale reference)
  */
 export function getElementByNodeId(nodeId: number): Element | undefined {
-  return selectorMap.get(nodeId)
+  const element = selectorMap.get(nodeId)
+  
+  // Check if element is still in the document
+  if (element && !document.contains(element)) {
+    console.warn(`[Browser AI] Element [${nodeId}] is no longer in the DOM (stale reference)`)
+    // Don't re-extract here - that would create new IDs that don't match what model expects
+    // Let the action fail, service worker will refresh context for next iteration
+    return undefined
+  }
+  
+  return element
 }
 
 /**
  * Generate selector map export (for actions)
+ * Filters out stale elements that are no longer in the DOM
  */
 export function getSelectorMap(): Array<{ id: number; selector: string; tag: string; text: string }> {
   const result: Array<{ id: number; selector: string; tag: string; text: string }> = []
 
   for (const [id, el] of selectorMap.entries()) {
+    // Skip elements that have been removed from DOM (e.g., React re-render)
+    if (!document.contains(el)) {
+      continue
+    }
+    
     result.push({
       id,
       selector: generateSelector(el),

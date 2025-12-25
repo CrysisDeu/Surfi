@@ -278,8 +278,13 @@ function resolveElement(selector?: string, nodeId?: number): Element | null {
   // Prefer nodeId if provided (browser-use style)
   if (nodeId !== undefined) {
     const el = getElementByNodeId(nodeId)
+    
+    // DON'T re-extract here - IDs from model are based on the DOM tree the model saw
+    // Re-extracting would create NEW IDs that don't match what model expects
+    // Let it fail and service worker will refresh context for next iteration
+    
     if (el) return el
-    console.warn(`[Browser AI] Element with nodeId ${nodeId} not found, trying selector`)
+    console.warn(`[Browser AI] Element with nodeId ${nodeId} not found in selectorMap`)
   }
 
   // Fall back to selector
@@ -292,9 +297,18 @@ function resolveElement(selector?: string, nodeId?: number): Element | null {
 
 // Get debug info about available elements
 function getAvailableElementsDebug(): string {
-  const dom = extractDOM()
-  const lines = dom.tree.split('\n').slice(0, 30) // First 30 lines
-  return `Available elements (${dom.interactiveCount} interactive):\n${lines.join('\n')}${dom.tree.split('\n').length > 30 ? '\n... (truncated)' : ''}`
+  // Show current map WITHOUT re-extracting
+  // If empty, explain why - the model needs to request fresh DOM
+  const currentMap = getSelectorMap()
+  
+  if (currentMap.length === 0) {
+    return `Available elements (0 interactive):\nSelectorMap is empty - DOM needs to be re-extracted via GET_DOM_TREE`
+  }
+  
+  const lines = currentMap.slice(0, 30).map(item => 
+    `[${item.id}] <${item.tag}> ${item.text ? `"${item.text}"` : ''} → ${item.selector}`
+  )
+  return `Available elements (${currentMap.length} interactive):\n${lines.join('\n')}${currentMap.length > 30 ? '\n... (truncated)' : ''}`
 }
 
 // Click on an element

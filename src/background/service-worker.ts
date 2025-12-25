@@ -359,8 +359,37 @@ async function handleAgentLoop(request: ChatRequest, port: chrome.runtime.Port):
   while (agentState.stepNumber < MAX_ITERATIONS) {
     agentState.stepNumber++
     
+    // BROWSER-USE STYLE: Always refresh DOM at the START of each iteration
+    // This ensures the model always sees the current page state, even after failed actions
+    if (tab?.id) {
+      try {
+        const freshContext = await getPageContext(tab.id)
+        // Always use fresh context - even if domTree is empty, we want fresh URL/title
+        pageContext = freshContext
+        
+        // If DOM is empty, retry a few times (content script might be loading)
+        if (!pageContext.domTree) {
+          for (let retry = 0; retry < 3 && !pageContext.domTree; retry++) {
+            await new Promise(resolve => setTimeout(resolve, 500))
+            pageContext = await getPageContext(tab.id)
+          }
+        }
+      } catch (error) {
+        console.warn('[Browser AI] Could not refresh page context:', error)
+      }
+    }
+    
     // Build system prompt with current history (browser-use style)
     const systemPrompt = buildSystemPromptWithHistory(pageContext, conversationContext, agentState)
+
+    // Send prompt info to sidepanel for debugging
+    port.postMessage({
+      type: 'prompt_debug',
+      stepNumber: agentState.stepNumber,
+      systemPrompt: systemPrompt,
+      url: pageContext.url,
+      interactiveCount: pageContext.interactiveCount,
+    })
 
     // Build conversation - include latest user message for context
     const conversationMessages: Array<{ role: string; content: unknown[] }> = [

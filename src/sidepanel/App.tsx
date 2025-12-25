@@ -4,10 +4,20 @@ import { ChatInput } from './components/ChatInput'
 import { Header } from './components/Header'
 import type { Message } from '../types'
 
+interface PromptDebug {
+  stepNumber: number
+  systemPrompt: string
+  url: string
+  interactiveCount: number
+  timestamp: number
+}
+
 function App() {
   const [messages, setMessages] = useState<Message[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [streamingContent, setStreamingContent] = useState('')
+  const [promptDebugList, setPromptDebugList] = useState<PromptDebug[]>([])
+  const [showPromptDebug, setShowPromptDebug] = useState<number | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const portRef = useRef<chrome.runtime.Port | null>(null)
 
@@ -41,7 +51,15 @@ function App() {
       let fullContent = ''
       
       port.onMessage.addListener((message) => {
-        if (message.type === 'chunk') {
+        if (message.type === 'prompt_debug') {
+          setPromptDebugList((prev) => [...prev, {
+            stepNumber: message.stepNumber,
+            systemPrompt: message.systemPrompt,
+            url: message.url,
+            interactiveCount: message.interactiveCount,
+            timestamp: Date.now(),
+          }])
+        } else if (message.type === 'chunk') {
           fullContent += message.content
           setStreamingContent(fullContent)
         } else if (message.type === 'done') {
@@ -101,6 +119,8 @@ function App() {
   const handleClearChat = () => {
     setMessages([])
     setStreamingContent('')
+    setPromptDebugList([])
+    setShowPromptDebug(null)
   }
 
   const handleStopAgent = () => {
@@ -172,6 +192,52 @@ function App() {
         isLoading={isLoading} 
         onStop={handleStopAgent}
       />
+
+      {/* Prompt Debug Panel */}
+      {promptDebugList.length > 0 && (
+        <div className="prompt-debug-fab">
+          <button 
+            className="prompt-debug-button"
+            onClick={() => setShowPromptDebug(showPromptDebug === null ? promptDebugList.length - 1 : null)}
+            title="View LLM Prompts"
+          >
+            📋 {promptDebugList.length}
+          </button>
+        </div>
+      )}
+
+      {showPromptDebug !== null && promptDebugList[showPromptDebug] && (
+        <div className="prompt-debug-modal" onClick={() => setShowPromptDebug(null)}>
+          <div className="prompt-debug-content" onClick={(e) => e.stopPropagation()}>
+            <div className="prompt-debug-header">
+              <h3>LLM Prompt - Step {promptDebugList[showPromptDebug].stepNumber}</h3>
+              <div className="prompt-debug-nav">
+                <button 
+                  disabled={showPromptDebug === 0}
+                  onClick={() => setShowPromptDebug(Math.max(0, showPromptDebug - 1))}
+                >
+                  ◀ Prev
+                </button>
+                <span>{showPromptDebug + 1} / {promptDebugList.length}</span>
+                <button 
+                  disabled={showPromptDebug === promptDebugList.length - 1}
+                  onClick={() => setShowPromptDebug(Math.min(promptDebugList.length - 1, showPromptDebug + 1))}
+                >
+                  Next ▶
+                </button>
+              </div>
+              <button className="close-button" onClick={() => setShowPromptDebug(null)}>✕</button>
+            </div>
+            <div className="prompt-debug-meta">
+              <span>URL: {promptDebugList[showPromptDebug].url}</span>
+              <span>Elements: {promptDebugList[showPromptDebug].interactiveCount}</span>
+            </div>
+            <pre className="prompt-debug-text">
+              {promptDebugList[showPromptDebug].systemPrompt}
+            </pre>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
