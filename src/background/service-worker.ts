@@ -1,4 +1,4 @@
-// Browser AI Service Worker
+// Surfi Service Worker
 // Thin orchestrator that delegates to specialized modules
 
 import type { ChatRequest } from '../types'
@@ -84,7 +84,7 @@ const DEFAULT_SETTINGS = {
 
 // Initialize extension on install
 chrome.runtime.onInstalled.addListener(() => {
-  console.log('Browser AI extension installed')
+  console.log('Surfi extension installed')
 
   chrome.storage.sync.get('settings', (result) => {
     if (!result.settings) {
@@ -100,4 +100,4 @@ chrome.runtime.onInstalled.addListener(() => {
 setupTabListeners()
 initializeTabTracking()
 
-console.log('[Browser AI] Service worker initialized')
+console.log('[Surfi] Service worker initialized')

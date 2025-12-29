@@ -151,15 +151,15 @@ function App() {
       <div className="messages-container">
         {messages.length === 0 && !streamingContent ? (
           <div className="welcome-message">
-            <h2>👋 Welcome to Browser AI</h2>
+            <h2>👋 Welcome to Surfi</h2>
             <p>I can help you navigate and interact with web pages.</p>
             <p>Try asking me to:</p>
-            <ul>
-              <li>Summarize this page</li>
-              <li>Find specific information</li>
-              <li>Click on elements</li>
-              <li>Fill out forms</li>
-            </ul>
+            <div className="suggestion-buttons">
+              <button onClick={() => handleSendMessage('Summarize this page')}>Summarize this page</button>
+              <button onClick={() => handleSendMessage('Find contact information')}>Find contact info</button>
+              <button onClick={() => handleSendMessage('What are the main topics on this page?')}>Main topics</button>
+              <button onClick={() => handleSendMessage('Fill out the form on this page')}>Fill out form</button>
+            </div>
           </div>
         ) : (
           <>

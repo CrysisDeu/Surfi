@@ -284,7 +284,7 @@ function resolveElement(selector?: string, nodeId?: number): Element | null {
     // Let it fail and service worker will refresh context for next iteration
     
     if (el) return el
-    console.warn(`[Browser AI] Element with nodeId ${nodeId} not found in selectorMap`)
+    console.warn(`[Surfi] Element with nodeId ${nodeId} not found in selectorMap`)
   }
 
   // Fall back to selector
@@ -335,7 +335,7 @@ async function clickElement(selector?: string, nodeId?: number): Promise<{ succe
   // Click the element
   if (element instanceof HTMLElement) {
     element.click()
-    console.log(`[Browser AI] Clicked element: ${nodeId ?? selector}`)
+    console.log(`[Surfi] Clicked element: ${nodeId ?? selector}`)
 
     // Wait for page to react to click (important for SPA navigation/data loading)
     await new Promise((resolve) => setTimeout(resolve, 1000))
@@ -426,7 +426,7 @@ async function typeInElement(
     await new Promise((resolve) => setTimeout(resolve, 100))
     element.dispatchEvent(new Event('blur', { bubbles: true }))
 
-    console.log(`[Browser AI] Typed "${value}" into ${nodeId ?? selector}, current value: "${element.value}"`)
+    console.log(`[Surfi] Typed "${value}" into ${nodeId ?? selector}, current value: "${element.value}"`)
 
     return { success: true }
   }
@@ -668,4 +668,4 @@ document.addEventListener('click', (e) => {
 }, true)
 
 // Initialize content script
-console.log('Browser AI content script loaded (enhanced DOM extraction)')
+console.log('Surfi content script loaded (enhanced DOM extraction)')

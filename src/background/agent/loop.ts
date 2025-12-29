@@ -58,7 +58,7 @@ function formatAgentHistory(historyItems: HistoryItem[], maxItems: number = 10):
 // ============================================================================
 
 function buildSimpleSystemPrompt(pageContext: PageContext): string {
-  return `You are Browser AI, an autonomous browser agent that helps users interact with web pages.
+  return `You are Surfi, an autonomous browser agent that helps users interact with web pages.
 
 You can see the current state of the page and use tools to interact with it.
 Interactive elements are marked with [id] numbers that you can reference in actions.
@@ -302,7 +302,7 @@ export async function handleAgentLoop(request: ChatRequest, port: chrome.runtime
       try {
         pageContext = await getPageContextWithRetry(currentTabId, 3, 500)
       } catch (error) {
-        console.warn('[Browser AI] Could not refresh page context:', error)
+        console.warn('[Surfi] Could not refresh page context:', error)
       }
     }
     

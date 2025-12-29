@@ -1,6 +1,13 @@
 import { useState } from 'react'
 import { AWS_REGIONS } from '../constants'
-import { type ModelFormData, parseAWSCredentialsBlob } from '../utils'
+import { 
+  type ModelFormData, 
+  type BedrockFormData,
+  isAPIBasedForm,
+  isBedrockForm,
+  parseAWSCredentialsBlob,
+  createEmptyFormData,
+} from '../utils'
 
 interface ModelEditorProps {
   formData: ModelFormData
@@ -18,10 +25,12 @@ export function ModelEditor({ formData: initialFormData, onSave, onCancel, isNew
   const [showCredentialPaste, setShowCredentialPaste] = useState(false)
 
   const handleParseCredentials = () => {
+    if (!isBedrockForm(formData)) return
+    
     const parsed = parseAWSCredentialsBlob(credentialBlob)
     if (parsed.awsAccessKeyId && parsed.awsSecretAccessKey) {
       // Credentials are valid - save immediately
-      const updatedFormData = {
+      const updatedFormData: BedrockFormData = {
         ...formData,
         awsAccessKeyId: parsed.awsAccessKeyId,
         awsSecretAccessKey: parsed.awsSecretAccessKey,
@@ -31,12 +40,33 @@ export function ModelEditor({ formData: initialFormData, onSave, onCancel, isNew
     }
   }
 
+  // Update a shared field (works for all provider types)
+  const updateField = <K extends keyof ModelFormData>(field: K, value: ModelFormData[K]) => {
+    setFormData({ ...formData, [field]: value } as ModelFormData)
+  }
+
+  // Handle provider change - creates new form data with correct structure
+  const handleProviderChange = (newProvider: ModelFormData['provider']) => {
+    if (newProvider === formData.provider) return
+    
+    // Create new form data for the new provider, preserving shared fields
+    const newFormData = createEmptyFormData(newProvider)
+    setFormData({
+      ...newFormData,
+      id: formData.id,
+      name: formData.name,
+      maxTokens: formData.maxTokens,
+      temperature: formData.temperature,
+    } as ModelFormData)
+  }
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     onSave(formData)
   }
 
-  const isBedrock = formData.provider === 'bedrock'
+  const isBedrock = isBedrockForm(formData)
+  const isAPIBased = isAPIBasedForm(formData)
 
   return (
     <div className="modal-overlay" onClick={onCancel}>
@@ -49,7 +79,7 @@ export function ModelEditor({ formData: initialFormData, onSave, onCancel, isNew
               type="text"
               id="name"
               value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              onChange={(e) => updateField('name', e.target.value)}
               placeholder="My Custom Model"
               required
             />
@@ -60,12 +90,7 @@ export function ModelEditor({ formData: initialFormData, onSave, onCancel, isNew
             <select
               id="provider"
               value={formData.provider}
-              onChange={(e) =>
-                setFormData({
-                  ...formData,
-                  provider: e.target.value as ModelFormData['provider'],
-                })
-              }
+              onChange={(e) => handleProviderChange(e.target.value as ModelFormData['provider'])}
             >
               <option value="openai">OpenAI</option>
               <option value="anthropic">Anthropic</option>
@@ -75,7 +100,7 @@ export function ModelEditor({ formData: initialFormData, onSave, onCancel, isNew
           </div>
 
           {/* API-based providers */}
-          {!isBedrock && (
+          {isAPIBased && (
             <>
               <div className="form-group">
                 <label htmlFor="apiEndpoint">API Endpoint</label>
@@ -119,7 +144,7 @@ export function ModelEditor({ formData: initialFormData, onSave, onCancel, isNew
                 <select
                   id="awsRegion"
                   value={formData.awsRegion}
-                  onChange={(e) => setFormData({ ...formData, awsRegion: e.target.value })}
+                  onChange={(e) => setFormData({ ...formData, awsRegion: e.target.value } as BedrockFormData)}
                 >
                   {AWS_REGIONS.map((region) => (
                     <option key={region.value} value={region.value}>
@@ -253,7 +278,7 @@ export AWS_SESSION_TOKEN=...`}
                   type="text"
                   id="awsAccessKeyId"
                   value={formData.awsAccessKeyId}
-                  onChange={(e) => setFormData({ ...formData, awsAccessKeyId: e.target.value })}
+                  onChange={(e) => setFormData({ ...formData, awsAccessKeyId: e.target.value } as BedrockFormData)}
                   placeholder="AKIA... (leave empty to use profile/env)"
                 />
               </div>
@@ -265,7 +290,7 @@ export AWS_SESSION_TOKEN=...`}
                     type={showSecrets ? 'text' : 'password'}
                     id="awsSecretAccessKey"
                     value={formData.awsSecretAccessKey}
-                    onChange={(e) => setFormData({ ...formData, awsSecretAccessKey: e.target.value })}
+                    onChange={(e) => setFormData({ ...formData, awsSecretAccessKey: e.target.value } as BedrockFormData)}
                     placeholder="Leave empty to use profile/env"
                   />
                   <button
@@ -285,7 +310,7 @@ export AWS_SESSION_TOKEN=...`}
                     type={showSecrets ? 'text' : 'password'}
                     id="awsSessionToken"
                     value={formData.awsSessionToken}
-                    onChange={(e) => setFormData({ ...formData, awsSessionToken: e.target.value })}
+                    onChange={(e) => setFormData({ ...formData, awsSessionToken: e.target.value } as BedrockFormData)}
                     placeholder="For temporary credentials (STS)"
                   />
                   <button
@@ -310,18 +335,17 @@ export AWS_SESSION_TOKEN=...`}
               type="text"
               id="model"
               value={formData.model}
-              onChange={(e) => setFormData({ ...formData, model: e.target.value })}
+              onChange={(e) => updateField('model', e.target.value)}
               placeholder={
                 isBedrock
-                  ? 'anthropic.claude-3-sonnet-20240229-v1:0'
+                  ? 'us.anthropic.claude-sonnet-4-5-20250929-v1:0'
                   : 'gpt-4, claude-3-sonnet, llama2'
               }
               required
             />
             {isBedrock && (
               <small className="form-hint">
-                Common models: anthropic.claude-3-sonnet-20240229-v1:0,
-                anthropic.claude-3-haiku-20240307-v1:0, amazon.titan-text-express-v1
+                Default: us.anthropic.claude-sonnet-4-5-20250929-v1:0 (Claude Sonnet 4.5)
               </small>
             )}
           </div>
@@ -333,7 +357,7 @@ export AWS_SESSION_TOKEN=...`}
                 type="number"
                 id="maxTokens"
                 value={formData.maxTokens}
-                onChange={(e) => setFormData({ ...formData, maxTokens: parseInt(e.target.value) })}
+                onChange={(e) => updateField('maxTokens', parseInt(e.target.value))}
                 min="1"
                 max="100000"
               />
@@ -345,7 +369,7 @@ export AWS_SESSION_TOKEN=...`}
                 type="number"
                 id="temperature"
                 value={formData.temperature}
-                onChange={(e) => setFormData({ ...formData, temperature: parseFloat(e.target.value) })}
+                onChange={(e) => updateField('temperature', parseFloat(e.target.value))}
                 min="0"
                 max="2"
                 step="0.1"

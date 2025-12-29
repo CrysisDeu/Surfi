@@ -484,7 +484,7 @@ export function getElementByNodeId(nodeId: number): Element | undefined {
   
   // Check if element is still in the document
   if (element && !document.contains(element)) {
-    console.warn(`[Browser AI] Element [${nodeId}] is no longer in the DOM (stale reference)`)
+    console.warn(`[Surfi] Element [${nodeId}] is no longer in the DOM (stale reference)`)
     // Don't re-extract here - that would create new IDs that don't match what model expects
     // Let the action fail, service worker will refresh context for next iteration
     return undefined

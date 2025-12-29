@@ -51,7 +51,7 @@ export async function waitForContentScript(tabId: number, maxRetries: number = 5
       if (response?.alive) return true
     } catch {
       // Content script not ready, wait and retry
-      console.log(`[Browser AI] Content script not ready, retry ${i + 1}/${maxRetries}`)
+      console.log(`[Surfi] Content script not ready, retry ${i + 1}/${maxRetries}`)
     }
     await new Promise(resolve => setTimeout(resolve, 1000))
   }
@@ -86,7 +86,7 @@ export async function executeAction(
         // Auto-switch agent focus to the new tab
         if (newTab.id) {
           setAgentFocusTabId(newTab.id)
-          console.log(`[Browser AI] Auto-switched agent focus to new tab: ${newTab.id}`)
+          console.log(`[Surfi] Auto-switched agent focus to new tab: ${newTab.id}`)
           return { success: true, newTabId: newTab.id }
         }
       } else {
@@ -150,7 +150,7 @@ export async function executeAction(
           lastError.includes('back/forward cache') ||
           lastError.includes('Receiving end does not exist') ||
           lastError.includes('Could not establish connection')) {
-        console.log(`[Browser AI] Content script disconnected, waiting for reconnect... (retry ${retry + 1}/${maxRetries})`)
+        console.log(`[Surfi] Content script disconnected, waiting for reconnect... (retry ${retry + 1}/${maxRetries})`)
         // Wait for content script to reload
         const ready = await waitForContentScript(tabId, 3)
         if (ready) continue // Retry the action

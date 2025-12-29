@@ -44,9 +44,9 @@ export const MODEL_PRESETS = {
   },
   bedrock: {
     id: 'bedrock',
-    name: 'AWS Bedrock Claude',
+    name: 'AWS Bedrock Claude Sonnet 4.5',
     provider: 'bedrock' as const,
-    model: 'anthropic.claude-3-sonnet-20240229-v1:0',
+    model: 'us.anthropic.claude-sonnet-4-5-20250929-v1:0',
     awsRegion: 'us-east-1',
   },
   ollama: {

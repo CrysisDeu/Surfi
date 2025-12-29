@@ -1,37 +1,97 @@
 import type { ModelConfig } from '../types'
 
-// Form data type that can hold all fields from any provider
-export interface ModelFormData {
+// Base form fields shared by all providers
+interface BaseModelFormData {
   id: string
   name: string
-  provider: 'openai' | 'anthropic' | 'bedrock' | 'custom'
   model: string
   maxTokens: number
   temperature: number
-  // API-based providers
+}
+
+// Provider-specific form data types
+export interface OpenAIFormData extends BaseModelFormData {
+  provider: 'openai'
   apiEndpoint: string
   apiKey: string
-  // Bedrock-specific
+}
+
+export interface AnthropicFormData extends BaseModelFormData {
+  provider: 'anthropic'
+  apiEndpoint: string
+  apiKey: string
+}
+
+export interface BedrockFormData extends BaseModelFormData {
+  provider: 'bedrock'
   awsRegion: string
   awsAccessKeyId: string
   awsSecretAccessKey: string
   awsSessionToken: string
 }
 
+export interface CustomFormData extends BaseModelFormData {
+  provider: 'custom'
+  apiEndpoint: string
+  apiKey: string
+}
+
+// Discriminated union of all form data types
+export type ModelFormData = OpenAIFormData | AnthropicFormData | BedrockFormData | CustomFormData
+
+// Type guard helpers
+export function isAPIBasedForm(data: ModelFormData): data is OpenAIFormData | AnthropicFormData | CustomFormData {
+  return data.provider === 'openai' || data.provider === 'anthropic' || data.provider === 'custom'
+}
+
+export function isBedrockForm(data: ModelFormData): data is BedrockFormData {
+  return data.provider === 'bedrock'
+}
+
+// Factory functions for creating empty form data by provider
 export function createEmptyFormData(provider: ModelFormData['provider'] = 'custom'): ModelFormData {
-  return {
+  const base = {
     id: `model-${Date.now()}`,
     name: 'New Model',
-    provider,
-    apiEndpoint: '',
-    apiKey: '',
-    model: '',
     maxTokens: 4096,
     temperature: 0.7,
-    awsRegion: 'us-east-1',
-    awsAccessKeyId: '',
-    awsSecretAccessKey: '',
-    awsSessionToken: '',
+  }
+
+  switch (provider) {
+    case 'openai':
+      return {
+        ...base,
+        provider: 'openai',
+        apiEndpoint: 'https://api.openai.com/v1/chat/completions',
+        apiKey: '',
+        model: 'gpt-4',
+      }
+    case 'anthropic':
+      return {
+        ...base,
+        provider: 'anthropic',
+        apiEndpoint: 'https://api.anthropic.com/v1/messages',
+        apiKey: '',
+        model: 'claude-3-sonnet-20240229',
+      }
+    case 'bedrock':
+      return {
+        ...base,
+        provider: 'bedrock',
+        awsRegion: 'us-east-1',
+        awsAccessKeyId: '',
+        awsSecretAccessKey: '',
+        awsSessionToken: '',
+        model: 'us.anthropic.claude-sonnet-4-5-20250929-v1:0',
+      }
+    case 'custom':
+      return {
+        ...base,
+        provider: 'custom',
+        apiEndpoint: '',
+        apiKey: '',
+        model: '',
+      }
   }
 }
 
@@ -67,26 +127,22 @@ export function modelConfigToFormData(config: ModelConfig): ModelFormData {
   const base = {
     id: config.id,
     name: config.name,
-    provider: config.provider,
     model: config.model,
     maxTokens: config.maxTokens || 4096,
     temperature: config.temperature || 0.7,
-    apiEndpoint: '',
-    apiKey: '',
-    awsRegion: '',
-    awsAccessKeyId: '',
-    awsSecretAccessKey: '',
-    awsSessionToken: '',
   }
 
   switch (config.provider) {
     case 'openai':
+      return { ...base, provider: 'openai', apiEndpoint: config.apiEndpoint, apiKey: config.apiKey }
     case 'anthropic':
+      return { ...base, provider: 'anthropic', apiEndpoint: config.apiEndpoint, apiKey: config.apiKey }
     case 'custom':
-      return { ...base, apiEndpoint: config.apiEndpoint, apiKey: config.apiKey }
+      return { ...base, provider: 'custom', apiEndpoint: config.apiEndpoint, apiKey: config.apiKey }
     case 'bedrock':
       return {
         ...base,
+        provider: 'bedrock',
         awsRegion: config.awsRegion,
         awsAccessKeyId: config.awsAccessKeyId,
         awsSecretAccessKey: config.awsSecretAccessKey,

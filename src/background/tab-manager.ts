@@ -42,7 +42,7 @@ export async function initializeTabTracking(): Promise<void> {
     agentFocusTabId = activeTab.id
   }
   
-  console.log(`[Browser AI] Tab tracking initialized: ${managedTabs.size} tabs, agent focus: ${agentFocusTabId}`)
+  console.log(`[Surfi] Tab tracking initialized: ${managedTabs.size} tabs, agent focus: ${agentFocusTabId}`)
 }
 
 // Set up tab event listeners
@@ -56,13 +56,13 @@ export function setupTabListeners(): void {
         windowId: tab.windowId,
         isActive: tab.active || false,
       })
-      console.log(`[Browser AI] Tab created: ${tab.id} - ${tab.url}`)
+      console.log(`[Surfi] Tab created: ${tab.id} - ${tab.url}`)
     }
   })
 
   chrome.tabs.onRemoved.addListener((tabId) => {
     managedTabs.delete(tabId)
-    console.log(`[Browser AI] Tab removed: ${tabId}`)
+    console.log(`[Surfi] Tab removed: ${tabId}`)
     
     // If agent was focused on this tab, switch focus to another tab
     if (agentFocusTabId === tabId) {
@@ -71,7 +71,7 @@ export function setupTabListeners(): void {
         // Prefer the active tab, otherwise first available
         const activeTab = remainingTabs.find(t => t.isActive)
         agentFocusTabId = activeTab?.id || remainingTabs[0].id
-        console.log(`[Browser AI] Agent focus switched to: ${agentFocusTabId}`)
+        console.log(`[Surfi] Agent focus switched to: ${agentFocusTabId}`)
       } else {
         agentFocusTabId = null
       }
@@ -132,10 +132,10 @@ export async function switchAgentFocus(tabId: number): Promise<{ success: boolea
   try {
     await chrome.tabs.update(tabId, { active: true })
   } catch (error) {
-    console.warn(`[Browser AI] Could not activate tab ${tabId}:`, error)
+    console.warn(`[Surfi] Could not activate tab ${tabId}:`, error)
   }
   
-  console.log(`[Browser AI] Agent focus switched to tab ${tabId}`)
+  console.log(`[Surfi] Agent focus switched to tab ${tabId}`)
   return { success: true }
 }
 
