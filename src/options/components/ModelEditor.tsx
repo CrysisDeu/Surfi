@@ -231,17 +231,7 @@ aws configure export-credentials --profile ${profileName} --format env`}
 export AWS_SECRET_ACCESS_KEY=...
 export AWS_SESSION_TOKEN=...`}
                       rows={5}
-                      style={{
-                        width: '100%',
-                        fontFamily: 'monospace',
-                        fontSize: '11px',
-                        padding: '8px',
-                        borderRadius: '4px',
-                        border: '1px solid #444',
-                        backgroundColor: '#1a1a2e',
-                        color: '#e0e0e0',
-                        resize: 'vertical',
-                      }}
+                      className="credential-textarea"
                     />
                     <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
                       <button

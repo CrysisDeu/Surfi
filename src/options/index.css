@@ -427,9 +427,9 @@ body {
 .credential-paste-section {
   margin: 16px 0;
   padding: 12px;
-  background: #16213e;
+  background: var(--bg-tertiary);
   border-radius: 8px;
-  border: 1px dashed #444;
+  border: 1px dashed var(--border);
 }
 
 .credential-paste-box {
@@ -444,7 +444,28 @@ body {
 .profile-helper {
   margin-top: 16px;
   padding-top: 16px;
-  border-top: 1px solid #333;
+  border-top: 1px solid var(--border);
+}
+
+.credential-textarea {
+  width: 100%;
+  font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
+  font-size: 11px;
+  padding: 8px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  resize: vertical;
+}
+
+.credential-textarea::placeholder {
+  color: var(--text-secondary);
+}
+
+.credential-textarea:focus {
+  outline: none;
+  border-color: var(--accent);
 }
 
 .btn-link {
