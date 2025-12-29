@@ -383,6 +383,28 @@ body {
   color: var(--text-secondary);
 }
 
+/* Credentials Divider */
+.credentials-divider {
+  display: flex;
+  align-items: center;
+  text-align: center;
+  margin: 20px 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.credentials-divider::before,
+.credentials-divider::after {
+  content: '';
+  flex: 1;
+  border-bottom: 1px solid var(--border);
+}
+
+.credentials-divider span {
+  padding: 0 12px;
+  white-space: nowrap;
+}
+
 /* Profile Helper */
 .credential-paste-section {
   margin: 16px 0;

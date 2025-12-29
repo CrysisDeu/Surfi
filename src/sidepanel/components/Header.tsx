@@ -1,3 +1,5 @@
+import './Header.css'
+
 interface HeaderProps {
   onClearChat: () => void
 }
@@ -10,8 +12,8 @@ export function Header({ onClearChat }: HeaderProps) {
   return (
     <header className="header">
       <div className="header-title">
-        <span className="header-icon">🤖</span>
-        <h1>Browser AI</h1>
+        <span className="header-icon">🏄</span>
+        <h1>Surfi</h1>
       </div>
       <div className="header-actions">
         <button

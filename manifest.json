@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Browser AI",
+  "name": "Surfi",
   "version": "0.1.0",
-  "description": "AI Agent that helps you browse the web with custom model support",
+  "description": "AI that surfs the web for you. Automate any web task with natural language.",
   "icons": {
     "16": "public/icons/icon16.svg",
     "48": "public/icons/icon48.svg",
@@ -13,7 +13,7 @@
       "16": "public/icons/icon16.svg",
       "48": "public/icons/icon48.svg"
     },
-    "default_title": "Open Browser AI"
+    "default_title": "Open Surfi"
   },
   "side_panel": {
     "default_path": "src/sidepanel/index.html"

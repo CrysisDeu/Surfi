@@ -1,5 +1,6 @@
 import {
   BedrockRuntimeClient,
+  BedrockRuntimeClientConfig,
   ConverseCommand,
   ConverseCommandInput,
   ConverseCommandOutput,
@@ -13,15 +14,35 @@ interface ChatMessage {
   content: string
 }
 
+/**
+ * Create Bedrock client with credentials from config.
+ * 
+ * Note: Chrome extensions cannot access ~/.aws/credentials or environment variables
+ * due to browser sandboxing. Users must either:
+ * 1. Enter credentials manually in the extension settings
+ * 2. Use the "Paste AWS Credentials" feature to import from CLI
+ * 3. Set up a credential refresh workflow using `aws configure export-credentials`
+ * 
+ * The awsProfile field is stored for reference/documentation but cannot be used
+ * directly in the browser environment.
+ */
 function createBedrockClient(model: BedrockModelConfig): BedrockRuntimeClient {
-  return new BedrockRuntimeClient({
-    region: model.awsRegion,
-    credentials: {
+  const config: BedrockRuntimeClientConfig = {
+    region: model.awsRegion || 'us-east-1',
+  }
+
+  // Use explicit credentials from model config
+  if (model.awsAccessKeyId && model.awsSecretAccessKey) {
+    config.credentials = {
       accessKeyId: model.awsAccessKeyId,
       secretAccessKey: model.awsSecretAccessKey,
       ...(model.awsSessionToken && { sessionToken: model.awsSessionToken }),
-    },
-  })
+    }
+  }
+  // If no credentials provided, SDK will fail with clear error
+  // This is better than silently failing with "default credential chain" in browser
+
+  return new BedrockRuntimeClient(config)
 }
 
 export async function callBedrock(

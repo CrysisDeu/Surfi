@@ -53,7 +53,7 @@ export function formDataToModelConfig(data: ModelFormData): ModelConfig {
       return {
         ...base,
         provider: 'bedrock',
-        awsRegion: data.awsRegion,
+        awsRegion: data.awsRegion || 'us-east-1',
         awsAccessKeyId: data.awsAccessKeyId,
         awsSecretAccessKey: data.awsSecretAccessKey,
         ...(data.awsSessionToken ? { awsSessionToken: data.awsSessionToken } : {}),

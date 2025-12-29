@@ -3,6 +3,7 @@ import { ChatMessage } from './components/ChatMessage'
 import { ChatInput } from './components/ChatInput'
 import { Header } from './components/Header'
 import type { Message } from '../types'
+import './App.css'
 
 interface PromptDebug {
   stepNumber: number
@@ -226,6 +227,23 @@ function App() {
                   Next ▶
                 </button>
               </div>
+              <button 
+                className="copy-prompt-button"
+                onClick={() => {
+                  navigator.clipboard.writeText(promptDebugList[showPromptDebug].systemPrompt)
+                    .then(() => {
+                      // Show brief feedback
+                      const btn = document.querySelector('.copy-prompt-button')
+                      if (btn) {
+                        btn.textContent = '✓ Copied!'
+                        setTimeout(() => { btn.textContent = '📋 Copy' }, 1500)
+                      }
+                    })
+                }}
+                title="Copy prompt to clipboard"
+              >
+                📋 Copy
+              </button>
               <button className="close-button" onClick={() => setShowPromptDebug(null)}>✕</button>
             </div>
             <div className="prompt-debug-meta">

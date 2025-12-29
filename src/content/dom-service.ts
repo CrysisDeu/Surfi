@@ -69,6 +69,14 @@ let selectorMap = new Map<number, Element>()
 
 /**
  * Check if an element is visible in the viewport
+ * 
+ * Note: Following browser-use's pattern, we force visibility for certain form inputs
+ * that are often styled with opacity:0 by component libraries (Stencil, MUI, Bootstrap, etc.)
+ * These remain functional and accessible despite being visually hidden.
+ * 
+ * browser-use uses CDP's Accessibility.getFullAXTree() for semantic interactivity detection,
+ * which captures these elements. Since we're in a content script without CDP access,
+ * we explicitly handle these cases based on element type.
  */
 function isElementVisible(el: Element): boolean {
   const rect = el.getBoundingClientRect()
@@ -77,15 +85,29 @@ function isElementVisible(el: Element): boolean {
   // CSS visibility checks
   if (style.display === 'none') return false
   if (style.visibility === 'hidden') return false
-  if (parseFloat(style.opacity) <= 0) return false
 
   // Size check (allow small elements like checkboxes)
   if (rect.width === 0 && rect.height === 0) return false
 
-  // Special case: file inputs often have opacity:0 but are functional
-  if (el.tagName.toLowerCase() === 'input' && (el as HTMLInputElement).type === 'file') {
-    return rect.width > 0 || rect.height > 0
+  // EXCEPTION: Form inputs are often hidden with opacity:0 but are still functional
+  // (browser-use serializer.py lines ~356-362, ~468-478)
+  // Component libraries (Bootstrap, Stencil, MUI, Radix) hide native inputs and render
+  // custom styled overlays, but the native inputs remain semantically interactive
+  const tag = el.tagName.toLowerCase()
+  if (tag === 'input') {
+    const inputType = (el as HTMLInputElement).type.toLowerCase()
+    // File, checkbox, radio inputs commonly use opacity:0 styling
+    if (['file', 'checkbox', 'radio'].includes(inputType)) {
+      // Force visibility - these are functional even with opacity:0
+      // Only need non-zero dimensions to be interactable
+      if (rect.width > 0 || rect.height > 0) {
+        return true
+      }
+    }
   }
+
+  // Standard opacity check for other elements
+  if (parseFloat(style.opacity) <= 0) return false
 
   // Viewport intersection (with generous margin for scrollable content)
   const viewportHeight = window.innerHeight

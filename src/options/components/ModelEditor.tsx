@@ -19,15 +19,15 @@ export function ModelEditor({ formData: initialFormData, onSave, onCancel, isNew
 
   const handleParseCredentials = () => {
     const parsed = parseAWSCredentialsBlob(credentialBlob)
-    if (parsed.awsAccessKeyId || parsed.awsSecretAccessKey || parsed.awsSessionToken) {
-      setFormData({
+    if (parsed.awsAccessKeyId && parsed.awsSecretAccessKey) {
+      // Credentials are valid - save immediately
+      const updatedFormData = {
         ...formData,
-        awsAccessKeyId: parsed.awsAccessKeyId || formData.awsAccessKeyId,
-        awsSecretAccessKey: parsed.awsSecretAccessKey || formData.awsSecretAccessKey,
+        awsAccessKeyId: parsed.awsAccessKeyId,
+        awsSecretAccessKey: parsed.awsSecretAccessKey,
         awsSessionToken: parsed.awsSessionToken || formData.awsSessionToken,
-      })
-      setCredentialBlob('')
-      setShowCredentialPaste(false)
+      }
+      onSave(updatedFormData)
     }
   }
 
@@ -129,6 +129,56 @@ export function ModelEditor({ formData: initialFormData, onSave, onCancel, isNew
                 </select>
               </div>
 
+              {/* AWS Profile Helper - shows how to get credentials */}
+              <div className="profile-helper">
+                <button
+                  type="button"
+                  className="btn btn-link"
+                  onClick={() => setShowProfileHelper(!showProfileHelper)}
+                >
+                  📋 {showProfileHelper ? 'Hide' : 'Show'} AWS Profile Helper
+                </button>
+
+                {showProfileHelper && (
+                  <div className="profile-helper-content">
+                    <p>
+                      <strong>Get credentials from AWS profile</strong>
+                    </p>
+                    <p>Run this command in your terminal to export credentials from a profile:</p>
+
+                    <div className="form-group" style={{ marginBottom: '8px' }}>
+                      <label htmlFor="profileName" style={{ fontSize: '12px' }}>
+                        Profile name:
+                      </label>
+                      <input
+                        type="text"
+                        id="profileName"
+                        value={profileName}
+                        onChange={(e) => setProfileName(e.target.value)}
+                        placeholder="default"
+                        style={{ padding: '4px 8px', fontSize: '12px' }}
+                      />
+                    </div>
+
+                    <div className="code-block">
+                      <code>
+                        {`# For long-term credentials (IAM user):
+aws configure export-credentials --profile ${profileName} --format env
+
+# For SSO/temporary credentials:
+aws sso login --profile ${profileName}
+aws configure export-credentials --profile ${profileName} --format env`}
+                      </code>
+                    </div>
+
+                    <p style={{ fontSize: '11px', color: '#888', marginTop: '8px' }}>
+                      ⚠️ Chrome extensions cannot directly access ~/.aws/credentials due to browser
+                      sandboxing. Copy the command output and paste it below.
+                    </p>
+                  </div>
+                )}
+              </div>
+
               {/* Paste Credentials Section */}
               <div className="credential-paste-section">
                 <button
@@ -176,7 +226,7 @@ export AWS_SESSION_TOKEN=...`}
                         disabled={!credentialBlob.trim()}
                         style={{ flex: 1 }}
                       >
-                        ✓ Apply Credentials
+                        ✓ Apply & Save
                       </button>
                       <button
                         type="button"
@@ -204,8 +254,7 @@ export AWS_SESSION_TOKEN=...`}
                   id="awsAccessKeyId"
                   value={formData.awsAccessKeyId}
                   onChange={(e) => setFormData({ ...formData, awsAccessKeyId: e.target.value })}
-                  placeholder="AKIA..."
-                  required
+                  placeholder="AKIA... (leave empty to use profile/env)"
                 />
               </div>
 
@@ -217,8 +266,7 @@ export AWS_SESSION_TOKEN=...`}
                     id="awsSecretAccessKey"
                     value={formData.awsSecretAccessKey}
                     onChange={(e) => setFormData({ ...formData, awsSecretAccessKey: e.target.value })}
-                    placeholder="Your secret access key"
-                    required
+                    placeholder="Leave empty to use profile/env"
                   />
                   <button
                     type="button"
@@ -249,72 +297,10 @@ export AWS_SESSION_TOKEN=...`}
                   </button>
                 </div>
                 <small className="form-hint">
-                  Only needed if using temporary credentials from AWS STS (e.g., assumed roles)
+                  Only needed for temporary credentials from AWS STS
                 </small>
               </div>
 
-              {/* AWS Profile Helper */}
-              <div className="profile-helper">
-                <button
-                  type="button"
-                  className="btn btn-link"
-                  onClick={() => setShowProfileHelper(!showProfileHelper)}
-                >
-                  📋 {showProfileHelper ? 'Hide' : 'Show'} AWS Profile Helper
-                </button>
-
-                {showProfileHelper && (
-                  <div className="profile-helper-content">
-                    <p>
-                      <strong>Get credentials from AWS profile</strong>
-                    </p>
-                    <p>Run this command in your terminal to export credentials from a profile:</p>
-
-                    <div className="form-group" style={{ marginBottom: '8px' }}>
-                      <label htmlFor="profileName" style={{ fontSize: '12px' }}>
-                        Profile name:
-                      </label>
-                      <input
-                        type="text"
-                        id="profileName"
-                        value={profileName}
-                        onChange={(e) => setProfileName(e.target.value)}
-                        placeholder="default"
-                        style={{ padding: '4px 8px', fontSize: '12px' }}
-                      />
-                    </div>
-
-                    <div className="code-block">
-                      <code>
-                        {`# For long-term credentials (IAM user):
-aws configure export-credentials --profile ${profileName} --format env
-
-# For SSO/temporary credentials:
-aws sso login --profile ${profileName}
-aws configure export-credentials --profile ${profileName} --format env`}
-                      </code>
-                    </div>
-
-                    <p style={{ fontSize: '12px', marginTop: '8px' }}>Copy the output values:</p>
-                    <ul style={{ fontSize: '12px', margin: '4px 0', paddingLeft: '20px' }}>
-                      <li>
-                        <code>AWS_ACCESS_KEY_ID</code> → Access Key ID field
-                      </li>
-                      <li>
-                        <code>AWS_SECRET_ACCESS_KEY</code> → Secret Access Key field
-                      </li>
-                      <li>
-                        <code>AWS_SESSION_TOKEN</code> → Session Token field (if present)
-                      </li>
-                    </ul>
-
-                    <p style={{ fontSize: '11px', color: '#888', marginTop: '8px' }}>
-                      ⚠️ Chrome extensions cannot directly access ~/.aws/credentials due to browser
-                      sandboxing. Temporary credentials from SSO will expire and need to be refreshed.
-                    </p>
-                  </div>
-                )}
-              </div>
             </>
           )}
 

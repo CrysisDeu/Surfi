@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import type { Message } from '../../types'
+import './ChatMessage.css'
 
 interface Action {
   action: string

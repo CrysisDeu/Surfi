@@ -92,7 +92,7 @@ function App() {
   return (
     <div className="options-container">
       <header className="options-header">
-        <h1>🤖 Browser AI Settings</h1>
+        <h1>🏄 Surfi Settings</h1>
         <p>Configure your AI models and preferences</p>
       </header>
 

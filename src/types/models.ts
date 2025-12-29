@@ -27,7 +27,7 @@ export interface BedrockModelConfig extends BaseModelConfig {
   awsRegion: string
   awsAccessKeyId: string
   awsSecretAccessKey: string
-  awsSessionToken?: string
+  awsSessionToken?: string  // Optional - for temporary credentials (STS)
 }
 
 // Custom OpenAI-compatible endpoints

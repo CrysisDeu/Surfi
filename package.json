@@ -1,7 +1,7 @@
 {
-  "name": "browser-ai",
+  "name": "surfi",
   "version": "0.1.0",
-  "description": "AI Agent Chrome Extension with custom model support",
+  "description": "Surfi - AI that surfs the web for you. Automate any web task with natural language.",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-bedrock-runtime": "^3.958.0",
+    "@aws-sdk/credential-providers": "^3.958.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-markdown": "^10.1.0"

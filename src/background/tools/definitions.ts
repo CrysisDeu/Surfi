@@ -33,6 +33,7 @@ export function getBedrockToolConfig() {
 // Export all tools and categories
 export {
   allBrowserTools,
+  tabTools,
   navigationTools,
   interactionTools,
   dropdownTools,

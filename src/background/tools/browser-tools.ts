@@ -11,6 +11,38 @@ export interface BrowserTool {
   }
 }
 
+// Tab Management Tools
+export const tabTools: BrowserTool[] = [
+  {
+    name: 'switch_tab',
+    description: 'Switch agent focus to a different browser tab. Use when you need to work with a tab shown in <open_tabs>.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        tab_id: {
+          type: 'integer',
+          description: 'The tab ID shown in Tab[id] format in <open_tabs>',
+        },
+      },
+      required: ['tab_id'],
+    },
+  },
+  {
+    name: 'close_tab',
+    description: 'Close a browser tab. Use to close tabs you no longer need.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        tab_id: {
+          type: 'integer',
+          description: 'The tab ID shown in Tab[id] format in <open_tabs>',
+        },
+      },
+      required: ['tab_id'],
+    },
+  },
+]
+
 // Basic Navigation Tools
 export const navigationTools: BrowserTool[] = [
   {
@@ -247,6 +279,7 @@ export const completionTools: BrowserTool[] = [
 
 // All browser tools combined
 export const allBrowserTools: BrowserTool[] = [
+  ...tabTools,
   ...navigationTools,
   ...interactionTools,
   ...dropdownTools,
