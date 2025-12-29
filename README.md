@@ -1,223 +1,145 @@
-# Browser AI 🤖
+# Surfi 🏄
 
-A Chrome extension AI Agent that helps you interact with web pages using custom AI models.
+**AI that surfs the web for you.** Automate any web task with natural language.
+
+Surfi is a Chrome extension that uses AI to browse, click, type, and navigate web pages on your behalf. Just tell it what you want to do.
 
 ## Features
 
-- **Chat Sidebar**: Conversational AI interface in Chrome's side panel
-- **Page Context**: AI can read and understand the current page content
-- **Page Actions**: AI can execute actions like clicking, typing, scrolling
-- **Custom Models**: Support for OpenAI, Anthropic, Ollama, and any OpenAI-compatible API
-- **Multiple Configurations**: Save and switch between different AI model configurations
+- **🤖 AI Browser Agent**: Automate any web task using natural language
+- **👁️ Page Understanding**: AI sees and understands the current page content
+- **🖱️ Smart Actions**: Click buttons, fill forms, scroll, navigate - all via chat
+- **🔌 Multi-Provider Support**: OpenAI, Anthropic, AWS Bedrock, Ollama, or any OpenAI-compatible API
+- **⚙️ Customizable**: Configure multiple AI models and switch between them
 
-## Project Structure
+## Demo
 
-```
-browserAI/
-├── manifest.json           # Chrome extension manifest (V3)
-├── vite.config.ts          # Vite + CRXJS configuration
-├── package.json
-├── tsconfig.json
-│
-├── src/
-│   ├── sidepanel/          # Chat sidebar UI (React)
-│   │   ├── index.html
-│   │   ├── main.tsx
-│   │   ├── App.tsx
-│   │   ├── index.css
-│   │   └── components/
-│   │       ├── ChatMessage.tsx
-│   │       ├── ChatInput.tsx
-│   │       └── Header.tsx
-│   │
-│   ├── background/         # Service worker
-│   │   └── service-worker.ts
-│   │
-│   ├── content/            # Content script
-│   │   └── content.ts
-│   │
-│   ├── options/            # Settings page (React)
-│   │   ├── index.html
-│   │   ├── main.tsx
-│   │   ├── App.tsx
-│   │   └── index.css
-│   │
-│   ├── lib/                # Shared utilities
-│   │   ├── storage.ts
-│   │   └── messaging.ts
-│   │
-│   └── types/              # TypeScript types
-│       └── index.ts
-│
-└── public/
-    └── icons/              # Extension icons
-```
+> Ask Surfi: "Search for flights from NYC to LA on Google Flights"
+> 
+> Surfi will: Open Google Flights → Fill origin/destination → Click search
 
 ## Getting Started
 
 ### Prerequisites
 
 - Node.js 18+ 
-- npm or yarn
-- Chrome browser
+- Chrome browser (114+)
 
 ### Installation
 
-1. **Install dependencies:**
+1. **Clone and install:**
    ```bash
+   git clone https://github.com/CrysisDeu/surfi.git
+   cd surfi
    npm install
    ```
 
-2. **Start development server:**
+2. **Build the extension:**
    ```bash
-   npm run dev
+   npm run build
    ```
 
-3. **Load the extension in Chrome:**
-   - Open Chrome and go to `chrome://extensions/`
-   - Enable "Developer mode" (toggle in top right)
+3. **Load in Chrome:**
+   - Go to `chrome://extensions/`
+   - Enable "Developer mode" (top right toggle)
    - Click "Load unpacked"
-   - Select the `dist` folder from this project
+   - Select the `dist` folder
 
-4. **Configure your AI model:**
-   - Click the extension icon in Chrome
-   - Click the settings (gear) icon
-   - Add your API key and configure your preferred model
+4. **Configure your AI:**
+   - Click the Surfi icon → Settings (gear icon)
+   - Add your API key for your preferred provider
 
 ### Development
 
-The extension uses Vite with the CRXJS plugin for **automatic hot module replacement (HMR)**. 
-
-#### How Hot Reload Works
-
-1. **Start the dev server:**
-   ```bash
-   npm run dev
-   ```
-
-2. **Load extension ONCE:**
-   - Go to `chrome://extensions/`
-   - Enable "Developer mode"
-   - Click "Load unpacked" → select the `dist` folder
-
-3. **That's it!** Now when you edit code:
-   - **Side panel & Options page**: Changes appear instantly (true HMR)
-   - **Content scripts**: Page auto-refreshes
-   - **Background worker**: Extension auto-reloads
-   - **manifest.json changes**: Extension auto-reloads
-
-#### No Manual Reload Needed!
-
-Unlike traditional extension development, you **don't need to**:
-- Click "Reload" in `chrome://extensions/`
-- Manually refresh pages
-- Restart the browser
-
-The CRXJS Vite plugin handles all of this automatically.
-
-#### Development Tips
-
 ```bash
-# Start dev server with HMR
+# Start dev server with hot reload
 npm run dev
 
 # Build for production
 npm run build
-
-# Type check only
-npx tsc --noEmit
 ```
 
-#### Debugging
+With `npm run dev`, changes auto-reload:
+- **Side panel & Options**: Instant HMR
+- **Content scripts**: Page auto-refreshes
+- **Background worker**: Extension auto-reloads
 
-- **Side panel console**: Right-click side panel → "Inspect"
-- **Background worker**: Click "Service Worker" link in `chrome://extensions/`
-- **Content script**: Regular browser DevTools (F12) → Console
+## Supported AI Providers
 
-#### If HMR Stops Working
+| Provider | Models | Setup |
+|----------|--------|-------|
+| **OpenAI** | GPT-4, GPT-4 Turbo, GPT-3.5 | API key from OpenAI |
+| **Anthropic** | Claude 3 Opus/Sonnet/Haiku | API key from Anthropic |
+| **AWS Bedrock** | Claude, Titan, Llama | AWS credentials |
+| **Ollama** | Llama 2, Mistral, CodeLlama | Local installation |
+| **Custom** | Any OpenAI-compatible API | Your endpoint + key |
 
-Sometimes the WebSocket connection drops. Quick fixes:
-1. Refresh the page you're testing on
-2. Close and reopen the side panel
-3. If still broken: Reload extension in `chrome://extensions/`
+## Project Structure
 
-## Configuration
+```
+surfi/
+├── src/
+│   ├── sidepanel/        # Chat UI (React)
+│   ├── background/       # Service worker & AI agent
+│   │   ├── agent/        # Agent loop & orchestration
+│   │   ├── browser/      # Tab management & context
+│   │   ├── controller/   # Action execution
+│   │   ├── providers/    # AI provider integrations
+│   │   └── tools/        # Tool definitions
+│   ├── content/          # Page interaction scripts
+│   ├── options/          # Settings page (React)
+│   ├── lib/              # Shared utilities
+│   └── types/            # TypeScript definitions
+├── public/icons/         # Extension icons
+├── manifest.json         # Chrome extension manifest (V3)
+└── vite.config.ts        # Build configuration
+```
 
-### Supported Providers
-
-1. **OpenAI**
-   - Endpoint: `https://api.openai.com/v1/chat/completions`
-   - Models: `gpt-4`, `gpt-4-turbo`, `gpt-3.5-turbo`
-
-2. **Anthropic**
-   - Endpoint: `https://api.anthropic.com/v1/messages`
-   - Models: `claude-3-opus`, `claude-3-sonnet`, `claude-3-haiku`
-
-3. **Ollama (Local)**
-   - Endpoint: `http://localhost:11434/v1/chat/completions`
-   - Models: `llama2`, `mistral`, `codellama`, etc.
-
-4. **Custom (OpenAI-compatible)**
-   - Any API that follows the OpenAI chat completions format
-
-### Adding a Custom Model
-
-1. Go to extension settings
-2. Click "Add Model" or use a preset
-3. Configure:
-   - **Name**: Display name for the model
-   - **Provider**: Select provider type
-   - **API Endpoint**: Full URL to the chat completions endpoint
-   - **API Key**: Your API key (stored securely in Chrome storage)
-   - **Model ID**: The model identifier (e.g., `gpt-4`)
-   - **Max Tokens**: Maximum response length
-   - **Temperature**: Creativity level (0-2)
-
-## Usage
-
-1. **Open the sidebar**: Click the Browser AI icon in your toolbar
-2. **Start chatting**: Ask questions about the current page
-3. **Execute actions**: Ask the AI to click, type, or navigate
-
-### Example Prompts
+## Example Prompts
 
 - "Summarize this page"
-- "Find the contact information on this page"
-- "Click the login button"
-- "Fill in the search box with 'AI tools'"
-- "What products are listed on this page?"
+- "Click the sign up button"
+- "Fill the email field with test@example.com"
+- "Find all product prices on this page"
+- "Scroll down and find the contact information"
+- "Search for 'AI tools' in the search box"
 
-## Security Notes
+## Security
 
-- API keys are stored in Chrome's sync storage (encrypted)
+- API keys stored in Chrome's encrypted sync storage
 - Content scripts only run on pages you visit
-- All API calls are made from the background service worker
-- No data is sent to third parties except your configured AI provider
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Submit a pull request
-
-## License
-
-MIT License - see LICENSE file for details
+- All AI calls made from background worker (no page access to keys)
+- No data sent to third parties except your configured AI provider
 
 ## Troubleshooting
 
 ### Extension not loading
-- Make sure you've run `npm run dev` or `npm run build`
-- Check that you're loading the `dist` folder
-- Look for errors in `chrome://extensions/`
+- Run `npm run build` first
+- Load the `dist` folder (not project root)
+- Check `chrome://extensions/` for errors
 
-### API errors
-- Verify your API key is correct
-- Check the API endpoint URL
-- Ensure you have credits/quota with your provider
+### AI not responding
+- Verify API key is correct in settings
+- Check you have credits/quota with provider
+- Look for errors in extension background console
 
-### Side panel not opening
-- Make sure the extension has the `sidePanel` permission
-- Try reloading the extension
-- Check Chrome version (requires Chrome 114+)
+### Actions not working
+- Make sure page is fully loaded
+- Some sites block automated interaction
+- Try refreshing the page
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing`)
+3. Commit changes (`git commit -m 'Add amazing feature'`)
+4. Push to branch (`git push origin feature/amazing`)
+5. Open a Pull Request
+
+## License
+
+MIT License - see [LICENSE](LICENSE) for details
+
+---
+
+**Made with 🏄 by [CrysisDeu](https://github.com/CrysisDeu)**
