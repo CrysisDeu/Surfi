@@ -1,8 +1,8 @@
 // Agent Loop (Browser-Use Style ReAct Loop)
 // Main agent loop that orchestrates model calls and action execution
 
-import type { ChatRequest, Settings, ModelConfig, BedrockModelConfig } from '../../types'
-import { callModelAPI, callBedrockWithTools, hasValidCredentials } from '../providers'
+import type { ChatRequest, Settings, ModelConfig, BedrockModelConfig, OpenAIModelConfig, AnthropicModelConfig, CustomModelConfig } from '../../types'
+import { callModelAPI, callBedrockWithTools, callOpenAIWithTools, callAnthropicWithTools, callCustomWithTools, hasValidCredentials } from '../providers'
 import { agentFocusTabId, getTabsInfo } from '../tab-manager'
 import { getPageContext, getPageContextWithRetry, type PageContext } from '../browser'
 import { executeAction, toolInputToAction } from '../controller'
@@ -184,12 +184,22 @@ You can chain multiple actions per step for efficiency:
 Do NOT chain actions that change page significantly (navigate + click won't work).
 </efficiency_guidelines>
 
+<output_format>
+Before calling any tool, you MUST output your reasoning in this EXACT format:
+
+EVAL: [Success/Failed/N/A] - Brief evaluation of whether the previous action achieved its goal
+MEMORY: [Key information discovered that should be remembered - extracted data, findings, etc.]
+GOAL: [What you will do next and why]
+
+Then call the appropriate tool.
+</output_format>
+
 <reasoning_rules>
-Before each action:
-1. Evaluate previous action: Did it succeed? Check browser_state for expected changes.
-2. Track progress: What have you accomplished toward the goal?
-3. Plan next step: What's the immediate next action to make progress?
-4. If stuck (repeating same action), try alternative approaches.
+1. ALWAYS evaluate: Did the previous action work? Check browser_state!
+2. ALWAYS save to memory: What key information did you learn? DON'T LOSE IT!
+3. NEVER repeat actions: Check agent_history - if you already searched/navigated somewhere, the results are NOW VISIBLE in browser_state
+4. READ the page: After search/navigate, the content is in browser_state - extract what you need!
+5. If stuck: Try different approach or call done(success=false) with what you found
 </reasoning_rules>
 
 <step_info>Step ${agentState.stepNumber}</step_info>`
@@ -275,8 +285,11 @@ export async function handleAgentLoop(request: ChatRequest, port: chrome.runtime
   const userMessages = request.payload.messages.filter(m => m.role === 'user')
   const latestUserMessage = userMessages[userMessages.length - 1]?.content || ''
 
-  // Non-Bedrock providers: simple response without tool use
-  if (model.provider !== 'bedrock') {
+  // All providers now support tool use
+  const supportsToolUse = ['bedrock', 'openai', 'anthropic', 'custom'].includes(model.provider)
+  
+  // Fallback for unknown providers
+  if (!supportsToolUse) {
     const systemPrompt = buildSystemPromptWithHistory(pageContext, conversationContext, agentState)
     const response = await callModelAPI(model, [
       { role: 'system', content: systemPrompt },
@@ -287,7 +300,7 @@ export async function handleAgentLoop(request: ChatRequest, port: chrome.runtime
     return
   }
 
-  // Bedrock ReAct loop with tool use
+  // ReAct loop with tool use (Bedrock and OpenAI)
   const settings = await getSettings()
   const MAX_ITERATIONS = settings.maxIterations || 10
 
@@ -318,33 +331,97 @@ export async function handleAgentLoop(request: ChatRequest, port: chrome.runtime
       interactiveCount: pageContext.interactiveCount,
     })
 
-    // Build conversation - include latest user message for context
-    const conversationMessages: Array<{ role: string; content: unknown[] }> = [
-      {
-        role: 'user',
-        content: [{ text: `Current request: ${latestUserMessage}\n\nPlease analyze the current page state and take the next action.` }],
+    // Build conversation message
+    const userMessage = `Current request: ${latestUserMessage}\n\nPlease analyze the current page state and take the next action.`
+    
+    // Call the appropriate provider with tools
+    let toolCalls: Array<{ name: string; input: Record<string, unknown> }> = []
+    let modelThinking = ''
+    
+    if (model.provider === 'bedrock') {
+      const conversationMessages: Array<{ role: string; content: unknown[] }> = [
+        { role: 'user', content: [{ text: userMessage }] }
+      ]
+      
+      const response = await callBedrockWithTools(
+        model as BedrockModelConfig,
+        systemPrompt,
+        conversationMessages
+      )
+      
+      if (response.stopReason === 'tool_use') {
+        const toolUseBlocks = response.output?.message?.content?.filter((block: { toolUse?: unknown }) => block.toolUse) || []
+        const textBlocks = response.output?.message?.content?.filter((block: { text?: string }) => block.text) || []
+        modelThinking = textBlocks.map((b: { text?: string }) => b.text).join('\n')
+        
+        for (const block of toolUseBlocks) {
+          const toolUse = block.toolUse!
+          toolCalls.push({ name: toolUse.name, input: toolUse.input as Record<string, unknown> })
+        }
+      } else {
+        // Model finished without tool use
+        const textContent = response.output?.message?.content?.find((block: { text?: string }) => block.text)
+        if (textContent?.text) {
+          port.postMessage({ type: 'chunk', content: textContent.text })
+        }
+        break
       }
-    ]
+    } else if (model.provider === 'openai' || model.provider === 'custom') {
+      // OpenAI and Custom (Ollama, vLLM, etc.) use the same format
+      const conversationMessages = [{ role: 'user', content: userMessage }]
+      
+      const response = model.provider === 'openai'
+        ? await callOpenAIWithTools(model as OpenAIModelConfig, systemPrompt, conversationMessages)
+        : await callCustomWithTools(model as CustomModelConfig, systemPrompt, conversationMessages)
+      
+      if (response.stopReason === 'tool_calls' && response.message.tool_calls) {
+        modelThinking = response.message.content || ''
+        
+        for (const toolCall of response.message.tool_calls) {
+          try {
+            const input = JSON.parse(toolCall.function.arguments)
+            toolCalls.push({ name: toolCall.function.name, input })
+          } catch (e) {
+            console.error('Failed to parse tool arguments:', e)
+          }
+        }
+      } else {
+        // Model finished without tool use
+        if (response.message.content) {
+          port.postMessage({ type: 'chunk', content: response.message.content })
+        }
+        break
+      }
+    } else if (model.provider === 'anthropic') {
+      const conversationMessages = [{ role: 'user', content: userMessage }]
+      
+      const response = await callAnthropicWithTools(
+        model as AnthropicModelConfig,
+        systemPrompt,
+        conversationMessages
+      )
+      
+      if (response.stopReason === 'tool_use') {
+        // Extract text and tool use from content blocks
+        for (const block of response.content) {
+          if (block.type === 'text' && block.text) {
+            modelThinking += block.text
+          } else if (block.type === 'tool_use' && block.name && block.input) {
+            toolCalls.push({ name: block.name, input: block.input })
+          }
+        }
+      } else {
+        // Model finished without tool use
+        const textContent = response.content.find(b => b.type === 'text')?.text
+        if (textContent) {
+          port.postMessage({ type: 'chunk', content: textContent })
+        }
+        break
+      }
+    }
 
-    const response = await callBedrockWithTools(
-      model as BedrockModelConfig,
-      systemPrompt,
-      conversationMessages
-    )
-
-    // Check if model wants to use a tool
-    if (response.stopReason === 'tool_use') {
-      const toolUseBlocks =
-        response.output?.message?.content?.filter((block: { toolUse?: unknown }) => block.toolUse) || []
-
-      // Extract model's thinking/reasoning from text blocks
-      const textBlocks = response.output?.message?.content?.filter((block: { text?: string }) => block.text) || []
-      const modelThinking = textBlocks.map((b: { text?: string }) => b.text).join('\n')
-
-      for (const block of toolUseBlocks) {
-        const toolUse = block.toolUse!
-        const toolName = toolUse.name
-        const toolInput = toolUse.input as Record<string, unknown>
+    // Process tool calls (unified for both providers)
+    for (const { name: toolName, input: toolInput } of toolCalls) {
 
         // Handle "done" action directly - show final result nicely
         if (toolName === 'done') {
@@ -424,14 +501,6 @@ export async function handleAgentLoop(request: ChatRequest, port: chrome.runtime
           }
         }
       }
-    } else {
-      // Model finished without tool use
-      const textContent = response.output?.message?.content?.find((block: { text?: string }) => block.text)
-      if (textContent?.text) {
-        port.postMessage({ type: 'chunk', content: textContent.text })
-      }
-      break
-    }
   }
 
   if (agentState.stepNumber >= MAX_ITERATIONS) {

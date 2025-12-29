@@ -32,7 +32,6 @@ export function ChatInput({ onSendMessage, isLoading, onStop }: ChatInputProps) 
         onChange={(e) => setInput(e.target.value)}
         onKeyDown={handleKeyDown}
         placeholder="Ask me anything about this page..."
-        disabled={isLoading}
         rows={1}
       />
       {isLoading && onStop ? (
