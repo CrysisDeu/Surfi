@@ -4,10 +4,10 @@ import { callAnthropic } from './anthropic'
 import { callBedrock } from './bedrock'
 import { callCustom } from './custom'
 
-export { callOpenAI } from './openai'
-export { callAnthropic } from './anthropic'
+export { callOpenAI, callOpenAIWithTools, type OpenAIToolResponse } from './openai'
+export { callAnthropic, callAnthropicWithTools, type AnthropicToolResponse } from './anthropic'
 export { callBedrock, callBedrockWithTools, type BedrockToolResponse } from './bedrock'
-export { callCustom } from './custom'
+export { callCustom, callCustomWithTools, type CustomToolResponse } from './custom'
 
 interface ChatMessage {
   role: string
