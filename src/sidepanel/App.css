@@ -19,41 +19,54 @@
 /* Welcome Message */
 .welcome-message {
   text-align: center;
-  padding: 40px 20px;
+  padding: 24px 16px;
   color: var(--text-secondary);
 }
 
 .welcome-message h2 {
-  font-size: 20px;
-  margin-bottom: 12px;
+  font-size: 22px;
+  margin-bottom: 8px;
   color: var(--text-primary);
 }
 
-.welcome-message p {
-  margin-bottom: 8px;
+.welcome-message > p {
+  margin-bottom: 20px;
+  font-size: 14px;
 }
 
-.welcome-message ul {
-  list-style: none;
-  margin-top: 16px;
+.welcome-message strong {
+  color: var(--accent);
+}
+
+/* Capability Sections */
+.capability-section {
+  margin-bottom: 20px;
+  text-align: left;
+}
+
+.capability-section h3 {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+  padding-left: 4px;
 }
 
 /* Suggestion Buttons */
 .suggestion-buttons {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  justify-content: center;
-  margin-top: 16px;
+  gap: 6px;
+  justify-content: flex-start;
 }
 
 .suggestion-buttons button {
-  padding: 10px 16px;
+  padding: 8px 12px;
   background-color: var(--bg-secondary);
   border: 1px solid var(--border);
-  border-radius: 20px;
+  border-radius: 16px;
   color: var(--text-primary);
-  font-size: 13px;
+  font-size: 12px;
   cursor: pointer;
   transition: all 0.2s ease;
 }

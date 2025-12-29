@@ -7,11 +7,13 @@ import {
   formDataToModelConfig,
   modelConfigToFormData,
 } from './utils'
+import { useTheme } from '../lib/theme-context'
 import { ModelCard } from './components/ModelCard'
 import { ModelEditor } from './components/ModelEditor'
 import { PresetButtons } from './components/PresetButtons'
 
 function App() {
+  const { theme, toggleTheme } = useTheme()
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS)
   const [editingModel, setEditingModel] = useState<ModelFormData | null>(null)
   const [isAddingModel, setIsAddingModel] = useState(false)
@@ -94,6 +96,13 @@ function App() {
       <header className="options-header">
         <h1>🏄 Surfi Settings</h1>
         <p>Configure your AI models and preferences</p>
+        <button 
+          className="btn btn-secondary theme-toggle" 
+          onClick={toggleTheme}
+          style={{ marginTop: '12px' }}
+        >
+          {theme === 'dark' ? '☀️ Light Mode' : '🌙 Dark Mode'}
+        </button>
       </header>
 
       <main className="options-main">

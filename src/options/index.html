@@ -4,6 +4,13 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Surfi Settings</title>
+    <script>
+      // Prevent theme flash by setting theme synchronously before render
+      (function() {
+        var theme = localStorage.getItem('surfi-theme') || 'light';
+        document.documentElement.setAttribute('data-theme', theme);
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
