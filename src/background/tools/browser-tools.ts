@@ -226,13 +226,13 @@ export const extractionTools: BrowserTool[] = [
   {
     name: 'extract_content',
     description:
-      'Extract specific information from the current page. The AI will analyze the page content and extract relevant data based on your query.',
+      'LLM extracts structured data from the current page markdown. Use when: (1) you are on the right page, (2) you know what to extract, (3) you haven\'t called this before on the same page+query, (4) the information is not visible in browser_state, or (5) you need structured extraction from the entire page including parts not currently visible. The extracted content is automatically saved and will appear in <extracted_data> section in all future prompts. IMPORTANT: Only call if the information is not already visible in browser_state - otherwise just read from browser_state directly. This tool is expensive - do not query the same page with the same query multiple times.',
     inputSchema: {
       type: 'object',
       properties: {
         query: {
           type: 'string',
-          description: 'What information to extract from the page',
+          description: 'What structured information to extract from the page (e.g., "all product prices", "contact email", "list of articles with titles")',
         },
       },
       required: ['query'],

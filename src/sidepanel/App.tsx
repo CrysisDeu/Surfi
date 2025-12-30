@@ -126,16 +126,26 @@ function App() {
 
   const handleStopAgent = () => {
     if (portRef.current) {
-      // Add a message indicating the agent was stopped
+      // Save the streaming content as-is (without stop message)
       if (streamingContent) {
-        const stoppedMessage: Message = {
+        const assistantMessage: Message = {
           id: (Date.now() + 1).toString(),
           role: 'assistant',
-          content: streamingContent + '\n\n⏹️ *Agent stopped by user*',
+          content: streamingContent,
           timestamp: Date.now(),
         }
-        setMessages((prev) => [...prev, stoppedMessage])
+        setMessages((prev) => [...prev, assistantMessage])
       }
+      
+      // Add stop notification as a separate system message
+      // This keeps concerns separated and avoids parsing issues
+      const stopMessage: Message = {
+        id: (Date.now() + 2).toString(),
+        role: 'system',
+        content: '⏹️ *Agent stopped by user*',
+        timestamp: Date.now(),
+      }
+      setMessages((prev) => [...prev, stopMessage])
       
       portRef.current.disconnect()
       portRef.current = null
@@ -196,7 +206,7 @@ function App() {
               <ChatMessage key={message.id} message={message} />
             ))}
             {streamingContent && (
-              <ChatMessage 
+              <ChatMessage
                 message={{
                   id: 'streaming',
                   role: 'assistant',
