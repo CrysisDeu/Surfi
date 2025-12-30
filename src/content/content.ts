@@ -299,24 +299,37 @@ function resolveElement(selector?: string, nodeId?: number): Element | null {
     // Let it fail and service worker will refresh context for next iteration
     
     if (el) return el
-    console.warn(`[Surfi] Element with nodeId ${nodeId} not found in selectorMap`)
+    
+    // nodeId lookup failed - will try selector fallback below
+    // Only log warning if selector also fails (we'll check that in the caller)
   }
 
   // Fall back to selector
   if (selector) {
-    return document.querySelector(selector)
+    const element = document.querySelector(selector)
+    if (element) {
+      // Selector worked even though nodeId didn't - this is fine, just log info
+      if (nodeId !== undefined) {
+        console.log(`[Surfi] Element [${nodeId}] not in selectorMap, but found via selector fallback - DOM likely changed after previous action`)
+      }
+      return element
+    }
   }
 
   return null
 }
 
 // Get debug info about available elements
-function getAvailableElementsDebug(): string {
+function getAvailableElementsDebug(nodeId?: number, actionType?: string): string {
   // Show current map WITHOUT re-extracting
   // If empty, explain why - the model needs to request fresh DOM
   const currentMap = getSelectorMap()
   
   if (currentMap.length === 0) {
+    // If this happens after a click or other DOM-changing action, provide context
+    if (actionType === 'click' && nodeId !== undefined) {
+      return `Available elements (0 interactive):\nSelectorMap is empty - DOM changed after click on element [${nodeId}]. This is expected if the click triggered navigation or DOM updates. The page context will be refreshed automatically.`
+    }
     return `Available elements (0 interactive):\nSelectorMap is empty - DOM needs to be re-extracted via GET_DOM_TREE`
   }
   
@@ -330,7 +343,20 @@ function getAvailableElementsDebug(): string {
 async function clickElement(selector?: string, nodeId?: number): Promise<{ success: boolean; error?: string; content?: string }> {
   const element = resolveElement(selector, nodeId)
   if (!element) {
-    const debug = getAvailableElementsDebug()
+    // Both nodeId and selector failed - element truly not found
+    const debug = getAvailableElementsDebug(nodeId, 'click')
+    const currentMap = getSelectorMap()
+    
+    // If selectorMap is empty, the DOM likely changed after a previous action
+    // This is expected behavior - provide a helpful message
+    if (currentMap.length === 0) {
+      return { 
+        success: false, 
+        error: `Element [${nodeId ?? selector}] not found - DOM changed after previous action`,
+        content: `The selectorMap is empty, which typically means the DOM was updated after a previous action (like a click). This is expected behavior when clicks trigger navigation or DOM updates. The page context will be refreshed automatically for the next action.\n\n${debug}`
+      }
+    }
+    
     return { 
       success: false, 
       error: `Element [${nodeId ?? selector}] not found`,
@@ -358,6 +384,13 @@ async function clickElement(selector?: string, nodeId?: number): Promise<{ succe
 
     // Wait for page to react to click (important for SPA navigation/data loading)
     await new Promise((resolve) => setTimeout(resolve, 1000))
+
+    // After click, check if element still exists (DOM may have changed)
+    // This is informational only - the click already succeeded
+    const elementStillExists = document.contains(element)
+    if (!elementStillExists && nodeId !== undefined) {
+      console.log(`[Surfi] Element [${nodeId}] removed from DOM after click - this is expected if the click triggered navigation or DOM updates`)
+    }
 
     return { success: true, content: `Clicked element [${nodeId}] (${tagName}${text ? `: ${description}` : ''})` }
   }
