@@ -152,11 +152,12 @@ export function getTabsInfo(): string {
 }
 
 // Switch agent focus to a specific tab
-export async function switchAgentFocus(tabId: number): Promise<{ success: boolean; error?: string }> {
+export async function switchAgentFocus(tabId: number): Promise<{ success: boolean; error?: string; content?: string }> {
   if (!managedTabs.has(tabId)) {
     return { success: false, error: `Tab ${tabId} not found` }
   }
   
+  const tab = managedTabs.get(tabId)
   agentFocusTabId = tabId
   
   // Also activate the tab in Chrome so user can see it
@@ -167,19 +168,20 @@ export async function switchAgentFocus(tabId: number): Promise<{ success: boolea
   }
   
   console.log(`[Surfi] Agent focus switched to tab ${tabId}`)
-  return { success: true }
+  return { success: true, content: `Switched to tab ${tabId}: ${tab?.title || tab?.url || 'unknown'}` }
 }
 
 // Close a tab
-export async function closeTab(tabId: number): Promise<{ success: boolean; error?: string }> {
+export async function closeTab(tabId: number): Promise<{ success: boolean; error?: string; content?: string }> {
   if (!managedTabs.has(tabId)) {
     return { success: false, error: `Tab ${tabId} not found` }
   }
   
+  const tab = managedTabs.get(tabId)
   try {
     await chrome.tabs.remove(tabId)
     // onRemoved listener will handle state update
-    return { success: true }
+    return { success: true, content: `Closed tab ${tabId}: ${tab?.title || tab?.url || 'unknown'}` }
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : 'Failed to close tab' }
   }

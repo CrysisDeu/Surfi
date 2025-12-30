@@ -89,12 +89,13 @@ export async function executeAction(
         if (newTab.id) {
           setAgentFocusTabId(newTab.id)
           console.log(`[Surfi] Auto-switched agent focus to new tab: ${newTab.id}`)
-          return { success: true, newTabId: newTab.id }
+          return { success: true, newTabId: newTab.id, content: `Opened ${action.url} in new tab (tab ${newTab.id})` }
         }
       } else {
         await chrome.tabs.update(tabId, { url: action.url })
+        return { success: true, content: `Navigated to ${action.url}` }
       }
-      return { success: true }
+      return { success: true, content: `Navigated to ${action.url}` }
     } catch (error) {
       return { success: false, error: error instanceof Error ? error.message : 'Navigation failed' }
     }
@@ -108,8 +109,9 @@ export async function executeAction(
       bing: `https://www.bing.com/search?q=${encodeURIComponent(action.query)}`,
     }
     try {
-      await chrome.tabs.update(tabId, { url: searchUrls[engine] || searchUrls.google })
-      return { success: true }
+      const searchUrl = searchUrls[engine] || searchUrls.google
+      await chrome.tabs.update(tabId, { url: searchUrl })
+      return { success: true, content: `Searched for "${action.query}" using ${engine}` }
     } catch (error) {
       return { success: false, error: error instanceof Error ? error.message : 'Search failed' }
     }
@@ -118,7 +120,7 @@ export async function executeAction(
   if (action.type === 'go_back') {
     try {
       await chrome.tabs.goBack(tabId)
-      return { success: true }
+      return { success: true, content: 'Navigated back in browser history' }
     } catch (error) {
       return { success: false, error: error instanceof Error ? error.message : 'Go back failed' }
     }

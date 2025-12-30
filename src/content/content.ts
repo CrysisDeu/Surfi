@@ -253,7 +253,7 @@ async function executeAction(action: ActionRequest): Promise<{ success: boolean;
 
       case 'go_back':
         window.history.back()
-        return { success: true }
+        return { success: true, content: 'Navigated back in browser history' }
 
       case 'wait': {
         const ms = (action.seconds || 3) * 1000
@@ -349,13 +349,17 @@ async function clickElement(selector?: string, nodeId?: number): Promise<{ succe
 
   // Click the element
   if (element instanceof HTMLElement) {
+    const tagName = element.tagName.toLowerCase()
+    const text = element.textContent?.trim().substring(0, 50) || ''
+    const description = text ? `"${text}"` : tagName
+    
     element.click()
     console.log(`[Surfi] Clicked element: ${nodeId ?? selector}`)
 
     // Wait for page to react to click (important for SPA navigation/data loading)
     await new Promise((resolve) => setTimeout(resolve, 1000))
 
-    return { success: true }
+    return { success: true, content: `Clicked element [${nodeId}] (${tagName}${text ? `: ${description}` : ''})` }
   }
 
   return { success: false, error: 'Element is not clickable' }
@@ -367,7 +371,7 @@ async function typeInElement(
   nodeId?: number,
   value?: string,
   clear: boolean = true
-): Promise<{ success: boolean; error?: string }> {
+): Promise<{ success: boolean; error?: string; content?: string }> {
   if (!value) {
     return { success: false, error: 'No value provided' }
   }
@@ -443,7 +447,7 @@ async function typeInElement(
 
     console.log(`[Surfi] Typed "${value}" into ${nodeId ?? selector}, current value: "${element.value}"`)
 
-    return { success: true }
+    return { success: true, content: `Entered text "${value}" into element [${nodeId}]` }
   }
 
   // Try contenteditable elements
@@ -460,14 +464,14 @@ async function typeInElement(
     document.execCommand('insertText', false, value)
     element.dispatchEvent(new Event('input', { bubbles: true }))
 
-    return { success: true }
+    return { success: true, content: `Entered text "${value}" into contenteditable element [${nodeId}]` }
   }
 
   return { success: false, error: 'Element is not an input field' }
 }
 
 // Scroll the page or element (browser-use style with pages)
-function scrollPage(direction: 'up' | 'down', pages: number = 1, elementIndex?: number): { success: boolean } {
+function scrollPage(direction: 'up' | 'down', pages: number = 1, elementIndex?: number): { success: boolean; content?: string } {
   const scrollAmount = window.innerHeight * pages * 0.8
 
   if (elementIndex !== undefined && elementIndex !== 0) {
@@ -478,7 +482,7 @@ function scrollPage(direction: 'up' | 'down', pages: number = 1, elementIndex?: 
         top: direction === 'down' ? scrollAmount : -scrollAmount,
         behavior: 'smooth',
       })
-      return { success: true }
+      return { success: true, content: `Scrolled ${direction} ${pages} page(s) within element [${elementIndex}]` }
     }
   }
 
@@ -487,11 +491,11 @@ function scrollPage(direction: 'up' | 'down', pages: number = 1, elementIndex?: 
     top: direction === 'down' ? scrollAmount : -scrollAmount,
     behavior: 'smooth',
   })
-  return { success: true }
+  return { success: true, content: `Scrolled ${direction} ${pages} page(s)` }
 }
 
 // Send keyboard keys
-async function sendKeys(keys: string): Promise<{ success: boolean; error?: string }> {
+async function sendKeys(keys: string): Promise<{ success: boolean; error?: string; content?: string }> {
   const activeElement = document.activeElement as HTMLElement
 
   // Parse key combinations like "Control+a"
@@ -521,7 +525,7 @@ async function sendKeys(keys: string): Promise<{ success: boolean; error?: strin
     form?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
   }
 
-  return { success: true }
+  return { success: true, content: `Sent keys: ${keys}` }
 }
 
 // Navigate to a URL

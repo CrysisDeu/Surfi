@@ -26,3 +26,6 @@ npm-debug.log*
 # Chrome extension dev
 *.crx
 *.pem
+
+browser-use-main/
+nanobrowser-master/

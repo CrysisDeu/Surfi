@@ -578,12 +578,9 @@ export async function handleAgentLoop(request: ChatRequest, port: chrome.runtime
         }
         agentState.historyItems.push(historyItem)
 
-        // Show result
+        // Add tool result to conversation (tools now return meaningful content)
         if (toolResult.success) {
-          port.postMessage({ type: 'chunk', content: '✅ Done\n' })
-          
-          // For extract_content, add result to read_state (browser-use style one-time display)
-          // AND persist in extractionResults (nanobrowser style)
+          // For extract_content, handle special persistence logic
           if (toolName === 'extract_content' && toolResult.content) {
             const query = toolInput.query as string
             
@@ -609,23 +606,52 @@ export async function handleAgentLoop(request: ChatRequest, port: chrome.runtime
               extractionResults.shift()
             }
             
-            // Also add to conversation for immediate visibility
-            const extractionMessage = `Extracted information for query "${query}":\n\n${extractedContent.substring(0, 2000)}${extractedContent.length > 2000 ? '\n\n[... truncated ...]' : ''}`
+            // Format for conversation (truncate for conversation history)
+            const conversationContent = `Extracted information for query "${query}":\n\n${extractedContent.substring(0, 2000)}${extractedContent.length > 2000 ? '\n\n[... truncated ...]' : ''}`
+            
             toolResults.push({
               role: 'assistant',
-              content: extractionMessage
+              content: conversationContent
             })
             
-            // Keep only last 3 tool results to avoid token bloat
-            if (toolResults.length > 3) {
-              toolResults.shift()
-            }
+            port.postMessage({ type: 'chunk', content: `✅ ${conversationContent}\n` })
           } else {
+            // Use the content returned by the tool
+            const resultMessage = toolResult.content || `${toolName} completed successfully`
+            
+            toolResults.push({
+              role: 'assistant',
+              content: resultMessage
+            })
+            
+            port.postMessage({ type: 'chunk', content: `✅ ${resultMessage}\n` })
+            
             // Clear read_state after it's been shown once (browser-use style)
             readStateContent = null
           }
+          
+          // Keep only last 5 tool results to avoid token bloat
+          if (toolResults.length > 5) {
+            toolResults.shift()
+          }
         } else {
-          port.postMessage({ type: 'chunk', content: `❌ ${toolResult.error}\n` })
+          // Format error message
+          const errorMessage = toolResult.error || 'Action failed'
+          const fullErrorMessage = `Error: ${errorMessage}${toolResult.content ? `\n\n${toolResult.content}` : ''}`
+          
+          // Add error to conversation
+          toolResults.push({
+            role: 'assistant',
+            content: fullErrorMessage
+          })
+          
+          // Keep only last 5 tool results
+          if (toolResults.length > 5) {
+            toolResults.shift()
+          }
+          
+          // Show to user
+          port.postMessage({ type: 'chunk', content: `❌ ${errorMessage}\n` })
           if (toolResult.content) {
             port.postMessage({ 
               type: 'chunk', 
