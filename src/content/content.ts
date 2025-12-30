@@ -66,6 +66,19 @@ chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
     return true
   }
 
+  if (request.type === 'GET_PAGE_MARKDOWN') {
+    // Get page markdown/text for extraction
+    const pageText = extractVisibleText(document.body)
+    const dom = extractDOM()
+    sendResponse({
+      markdown: pageText,
+      domTree: dom.tree,
+      url: dom.url,
+      title: dom.title,
+    })
+    return true
+  }
+
   if (request.type === 'EXECUTE_ACTION') {
     executeAction(request.action)
       .then(sendResponse)
@@ -257,6 +270,8 @@ async function executeAction(action: ActionRequest): Promise<{ success: boolean;
 
       // Content extraction
       case 'extract_content':
+        // This is now handled in background script with LLM
+        // Keep for backwards compatibility but return page text
         return extractContent(action.query)
 
       case 'find_text':

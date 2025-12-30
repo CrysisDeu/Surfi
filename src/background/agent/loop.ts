@@ -6,6 +6,14 @@ import { callModelAPI, callBedrockWithTools, callOpenAIWithTools, callAnthropicW
 import { agentFocusTabId, getTabsInfo } from '../tab-manager'
 import { getPageContext, getPageContextWithRetry, type PageContext } from '../browser'
 import { executeAction, toolInputToAction } from '../controller'
+import { 
+  tabTools, 
+  navigationTools, 
+  interactionTools, 
+  dropdownTools, 
+  extractionTools, 
+  completionTools 
+} from '../tools/browser-tools'
 
 // ============================================================================
 // Types
@@ -54,6 +62,57 @@ function formatAgentHistory(historyItems: HistoryItem[], maxItems: number = 10):
 }
 
 // ============================================================================
+// Tool List Formatting
+// ============================================================================
+
+function formatToolForPrompt(tool: { name: string; description: string; inputSchema: { properties: Record<string, unknown>; required: string[] } }): string {
+  const params: string[] = []
+  
+  // Build parameter list from inputSchema
+  for (const [paramName, paramDef] of Object.entries(tool.inputSchema.properties)) {
+    const param = paramDef as { type?: string; description?: string; enum?: unknown[] }
+    const isRequired = tool.inputSchema.required.includes(paramName)
+    const paramType = param.type || 'string'
+    const optional = isRequired ? '' : '?'
+    
+    // Handle enum types
+    let typeStr = paramType
+    if (param.enum && Array.isArray(param.enum)) {
+      typeStr = param.enum.map(e => String(e)).join('|')
+    }
+    
+    params.push(`${paramName}${optional}: ${typeStr}`)
+  }
+  
+  const paramsStr = params.length > 0 ? `(${params.join(', ')})` : '()'
+  return `- ${tool.name}${paramsStr}: ${tool.description}`
+}
+
+function formatToolsSectionForPrompt(): string {
+  const sections = [
+    { title: 'Navigation', tools: navigationTools },
+    { title: 'Tab Management', tools: tabTools },
+    { title: 'Element Interaction', tools: interactionTools },
+    { title: 'Dropdowns', tools: dropdownTools },
+    { title: 'Content', tools: extractionTools },
+    { title: 'Completion', tools: completionTools },
+  ]
+  
+  const lines: string[] = []
+  for (const section of sections) {
+    if (section.tools.length > 0) {
+      lines.push(`${section.title}:`)
+      for (const tool of section.tools) {
+        lines.push(formatToolForPrompt(tool))
+      }
+      lines.push('') // Empty line between sections
+    }
+  }
+  
+  return lines.join('\n').trim()
+}
+
+// ============================================================================
 // System Prompt Building
 // ============================================================================
 
@@ -97,10 +156,24 @@ ${pageContext.domTree || 'Page content not available'}
 function buildSystemPromptWithHistory(
   pageContext: PageContext, 
   task: string, 
-  agentState: AgentState
+  agentState: AgentState,
+  readState?: string | null,
+  extractionResults?: Array<{ query: string; content: string; step: number }>
 ): string {
   const historySection = agentState.historyItems.length > 0
     ? `<agent_history>\n${formatAgentHistory(agentState.historyItems)}\n</agent_history>\n`
+    : ''
+
+  // Browser-use style: Add read_state for one-time extraction results
+  const readStateSection = readState
+    ? `<read_state>\n${readState}\n</read_state>\n`
+    : ''
+
+  // Nanobrowser style: Add persistent extraction results
+  const extractionSection = extractionResults && extractionResults.length > 0
+    ? `<extracted_data>\n${extractionResults.map((e, i) => 
+        `[Extraction ${i + 1} from Step ${e.step}]\nQuery: "${e.query}"\nResult:\n${e.content}\n`
+      ).join('\n')}</extracted_data>\n`
     : ''
 
   // Browser-use style page markers
@@ -118,7 +191,7 @@ function buildSystemPromptWithHistory(
 ${task}
 </user_request>
 
-${historySection}<open_tabs>
+${historySection}${readStateSection}${extractionSection}<open_tabs>
 The arrow (→) indicates your current focused tab. Use switch_tab(tab_id) to change focus.
 ${tabsInfo}
 </open_tabs>
@@ -137,32 +210,7 @@ ${domContent}
 </browser_state>
 
 <available_tools>
-Navigation:
-- search(query, engine?): Search the web (google/duckduckgo/bing)
-- navigate(url, new_tab?): Navigate to URL (new_tab=true opens in new tab)
-- go_back(): Go back in history
-- wait(seconds?): Wait for page load (default 3s, max 30s)
-
-Tab Management:
-- switch_tab(tab_id): Switch agent focus to a different tab
-- close_tab(tab_id): Close a specific tab
-
-Element Interaction:
-- click(index): Click element by [index] number
-- input_text(index, text, clear?): Type text into input field
-- scroll(down?, pages?, index?): Scroll page or element
-- send_keys(keys): Send keyboard keys (Enter, Tab, Control+a, etc.)
-
-Dropdowns:
-- get_dropdown_options(index): Get options from dropdown
-- select_dropdown_option(index, text): Select option by text
-
-Content:
-- extract_content(query): Extract information from page
-- find_text(text): Find and scroll to text
-
-Completion:
-- done(text, success?): Signal task complete with summary
+${formatToolsSectionForPrompt()}
 </available_tools>
 
 <browser_rules>
@@ -219,7 +267,7 @@ async function getSettings(): Promise<Settings> {
   return result.settings || DEFAULT_SETTINGS
 }
 
-async function getActiveModel(): Promise<ModelConfig | undefined> {
+export async function getActiveModel(): Promise<ModelConfig | undefined> {
   const settings = await getSettings()
   return settings.models.find((m) => m.id === settings.activeModelId)
 }
@@ -275,6 +323,12 @@ export async function handleAgentLoop(request: ChatRequest, port: chrome.runtime
     historyItems: [],
     stepNumber: 0
   }
+  
+  // Track extraction results (nanobrowser style - persist across multiple turns)
+  const extractionResults: Array<{ query: string; content: string; step: number }> = []
+  
+  // Track extraction results for read_state (browser-use style one-time display)
+  let readStateContent: string | null = null
 
   // Build full conversation context from all messages
   const conversationContext = request.payload.messages
@@ -304,6 +358,11 @@ export async function handleAgentLoop(request: ChatRequest, port: chrome.runtime
   const settings = await getSettings()
   const MAX_ITERATIONS = settings.maxIterations || 10
 
+  // Track tool results to add to conversation
+  const toolResults: Array<{ role: 'assistant'; content: string }> = []
+  // Track recent extract_content calls to detect loops
+  const recentExtractions: Array<{ query: string; step: number }> = []
+
   while (agentState.stepNumber < MAX_ITERATIONS) {
     agentState.stepNumber++
     
@@ -320,7 +379,7 @@ export async function handleAgentLoop(request: ChatRequest, port: chrome.runtime
     }
     
     // Build system prompt with current history (browser-use style)
-    const systemPrompt = buildSystemPromptWithHistory(pageContext, conversationContext, agentState)
+    const systemPrompt = buildSystemPromptWithHistory(pageContext, conversationContext, agentState, readStateContent, extractionResults)
 
     // Send prompt info to sidepanel for debugging
     port.postMessage({
@@ -331,7 +390,7 @@ export async function handleAgentLoop(request: ChatRequest, port: chrome.runtime
       interactiveCount: pageContext.interactiveCount,
     })
 
-    // Build conversation message
+    // Build conversation message with tool results
     const userMessage = `Current request: ${latestUserMessage}\n\nPlease analyze the current page state and take the next action.`
     
     // Call the appropriate provider with tools
@@ -340,7 +399,8 @@ export async function handleAgentLoop(request: ChatRequest, port: chrome.runtime
     
     if (model.provider === 'bedrock') {
       const conversationMessages: Array<{ role: string; content: unknown[] }> = [
-        { role: 'user', content: [{ text: userMessage }] }
+        { role: 'user', content: [{ text: userMessage }] },
+        ...toolResults.map(result => ({ role: 'assistant', content: [{ text: result.content }] }))
       ]
       
       const response = await callBedrockWithTools(
@@ -368,7 +428,10 @@ export async function handleAgentLoop(request: ChatRequest, port: chrome.runtime
       }
     } else if (model.provider === 'openai' || model.provider === 'custom') {
       // OpenAI and Custom (Ollama, vLLM, etc.) use the same format
-      const conversationMessages = [{ role: 'user', content: userMessage }]
+      const conversationMessages = [
+        { role: 'user', content: userMessage },
+        ...toolResults
+      ]
       
       const response = model.provider === 'openai'
         ? await callOpenAIWithTools(model as OpenAIModelConfig, systemPrompt, conversationMessages)
@@ -393,7 +456,10 @@ export async function handleAgentLoop(request: ChatRequest, port: chrome.runtime
         break
       }
     } else if (model.provider === 'anthropic') {
-      const conversationMessages = [{ role: 'user', content: userMessage }]
+      const conversationMessages = [
+        { role: 'user', content: userMessage },
+        ...toolResults
+      ]
       
       const response = await callAnthropicWithTools(
         model as AnthropicModelConfig,
@@ -441,6 +507,30 @@ export async function handleAgentLoop(request: ChatRequest, port: chrome.runtime
           type: 'chunk',
           content: `\n🔧 Step ${agentState.stepNumber}: ${toolName}(${JSON.stringify(toolInput)})\n`,
         })
+
+        // Detect repeated extract_content calls with same query
+        if (toolName === 'extract_content' && toolInput.query) {
+          const query = toolInput.query as string
+          const recentSameQuery = recentExtractions.filter(e => e.query === query)
+          if (recentSameQuery.length >= 2) {
+            // Same query called 3+ times - likely stuck in loop
+            port.postMessage({ 
+              type: 'chunk', 
+              content: `\n⚠️ Detected repeated extraction of same query. Consider calling done() with the extracted information.\n` 
+            })
+            // Add a helpful message to conversation
+            toolResults.push({
+              role: 'assistant',
+              content: `I've extracted information for "${query}" multiple times. The extracted content is available in the history above. If you have the information needed, please call done() to complete the task.`
+            })
+          }
+          // Track this extraction
+          recentExtractions.push({ query, step: agentState.stepNumber })
+          // Keep only last 5 extractions
+          if (recentExtractions.length > 5) {
+            recentExtractions.shift()
+          }
+        }
 
         // Execute the tool
         let toolResult: { success: boolean; error?: string; content?: string }
@@ -491,6 +581,49 @@ export async function handleAgentLoop(request: ChatRequest, port: chrome.runtime
         // Show result
         if (toolResult.success) {
           port.postMessage({ type: 'chunk', content: '✅ Done\n' })
+          
+          // For extract_content, add result to read_state (browser-use style one-time display)
+          // AND persist in extractionResults (nanobrowser style)
+          if (toolName === 'extract_content' && toolResult.content) {
+            const query = toolInput.query as string
+            
+            // Format extraction result for read_state (shown in next step only)
+            let extractedContent = toolResult.content
+            // Truncate if too long (browser-use uses 60k, we'll use 10k for now)
+            if (extractedContent.length > 10000) {
+              extractedContent = extractedContent.substring(0, 10000) + '\n\n[... content truncated at 10k characters ...]'
+            }
+            
+            // Set read_state for next iteration (browser-use style - one-time display)
+            readStateContent = `Query: "${query}"\n\nExtracted Content:\n${extractedContent}`
+            
+            // Also persist in extractionResults (nanobrowser style - multiple turns)
+            extractionResults.push({
+              query,
+              content: toolResult.content, // Keep full content in persistent storage
+              step: agentState.stepNumber
+            })
+            
+            // Keep only last 10 extractions to avoid token bloat (can summarize later if needed)
+            if (extractionResults.length > 10) {
+              extractionResults.shift()
+            }
+            
+            // Also add to conversation for immediate visibility
+            const extractionMessage = `Extracted information for query "${query}":\n\n${extractedContent.substring(0, 2000)}${extractedContent.length > 2000 ? '\n\n[... truncated ...]' : ''}`
+            toolResults.push({
+              role: 'assistant',
+              content: extractionMessage
+            })
+            
+            // Keep only last 3 tool results to avoid token bloat
+            if (toolResults.length > 3) {
+              toolResults.shift()
+            }
+          } else {
+            // Clear read_state after it's been shown once (browser-use style)
+            readStateContent = null
+          }
         } else {
           port.postMessage({ type: 'chunk', content: `❌ ${toolResult.error}\n` })
           if (toolResult.content) {

@@ -19,6 +19,8 @@
   --message-user: #e8f4fd;
   --message-assistant: #f5f5f5;
   --input-bg: #ffffff;
+  --success: #4caf50;
+  --danger: #f44336;
   --shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
@@ -35,6 +37,8 @@
   --message-user: #0f3460;
   --message-assistant: #1a1a2e;
   --input-bg: #16213e;
+  --success: #4caf50;
+  --danger: #f44336;
   --shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 

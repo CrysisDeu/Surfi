@@ -13,6 +13,12 @@ export interface TabState {
 export let managedTabs: Map<number, TabState> = new Map()
 export let agentFocusTabId: number | null = null
 
+// Track recent agent actions to detect new tabs opened by agent
+let recentAgentAction: { type: string; timestamp: number } | null = null
+// When clicking a link that opens in a new tab, the tab is created almost immediately (within ~100-500ms)
+// We use a short window to avoid catching user-opened tabs while still catching agent-opened ones
+const AGENT_ACTION_WINDOW_MS = 500 // 500ms window - tab creation from click is nearly instant
+
 // Setter for agentFocusTabId (needed for external modules)
 export function setAgentFocusTabId(tabId: number | null): void {
   agentFocusTabId = tabId
@@ -45,6 +51,14 @@ export async function initializeTabTracking(): Promise<void> {
   console.log(`[Surfi] Tab tracking initialized: ${managedTabs.size} tabs, agent focus: ${agentFocusTabId}`)
 }
 
+// Track agent action for new tab detection
+export function trackAgentAction(actionType: string): void {
+  recentAgentAction = {
+    type: actionType,
+    timestamp: Date.now(),
+  }
+}
+
 // Set up tab event listeners
 export function setupTabListeners(): void {
   chrome.tabs.onCreated.addListener((tab) => {
@@ -57,6 +71,23 @@ export function setupTabListeners(): void {
         isActive: tab.active || false,
       })
       console.log(`[Surfi] Tab created: ${tab.id} - ${tab.url}`)
+      
+      // Auto-switch agent focus if tab was created shortly after an agent action
+      // (e.g., clicking a link that opens in new tab)
+      if (recentAgentAction) {
+        const timeSinceAction = Date.now() - recentAgentAction.timestamp
+        if (timeSinceAction < AGENT_ACTION_WINDOW_MS) {
+          // Only auto-switch for click actions (links that open in new tabs)
+          if (recentAgentAction.type === 'click') {
+            agentFocusTabId = tab.id
+            console.log(`[Surfi] Auto-switched agent focus to new tab created by click: ${tab.id}`)
+            // Also activate the tab so user can see it
+            chrome.tabs.update(tab.id, { active: true }).catch(err => {
+              console.warn(`[Surfi] Could not activate tab ${tab.id}:`, err)
+            })
+          }
+        }
+      }
     }
   })
 

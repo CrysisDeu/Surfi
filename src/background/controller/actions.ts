@@ -1,7 +1,9 @@
 // Action Execution Controller (Browser-Use Style)
 // Executes browser actions via Chrome APIs and content scripts
 
-import { switchAgentFocus, closeTab, setAgentFocusTabId } from '../tab-manager'
+import { switchAgentFocus, closeTab, setAgentFocusTabId, trackAgentAction } from '../tab-manager'
+import { callModelAPI, hasValidCredentials } from '../providers'
+import { getActiveModel } from '../agent/loop'
 
 // Browser-use style action types
 export interface ActionParams {
@@ -128,6 +130,106 @@ export async function executeAction(
     return { success: true, content: `Waited ${action.seconds || 3} seconds` }
   }
 
+  // Handle extract_content in background script with LLM (browser-use style)
+  if (action.type === 'extract_content' && action.query) {
+    try {
+      // Get page markdown from content script
+      const pageData = await chrome.tabs.sendMessage(tabId, { type: 'GET_PAGE_MARKDOWN' })
+      if (!pageData || !pageData.markdown) {
+        return { success: false, error: 'Failed to get page content' }
+      }
+
+      const pageMarkdown = pageData.markdown
+      const pageUrl = pageData.url || ''
+      const query = action.query
+
+      // Truncate page content if too long (browser-use uses 30k, we'll use 20k)
+      const MAX_CONTENT_LENGTH = 20000
+      let content = pageMarkdown
+      let truncated = false
+      if (content.length > MAX_CONTENT_LENGTH) {
+        // Try to truncate at paragraph break
+        const truncateAt = content.lastIndexOf('\n\n', MAX_CONTENT_LENGTH - 500)
+        if (truncateAt > 0) {
+          content = content.substring(0, truncateAt)
+        } else {
+          content = content.substring(0, MAX_CONTENT_LENGTH)
+        }
+        truncated = true
+      }
+
+      // Get model for extraction (use same model as agent)
+      const model = await getActiveModel()
+      if (!model) {
+        return { success: false, error: 'No model configured for extraction' }
+      }
+
+      // Check credentials
+      if (!hasValidCredentials(model)) {
+        return { success: false, error: 'Model credentials not configured' }
+      }
+
+      // Browser-use style extraction prompt
+      const systemPrompt = `You are an expert at extracting data from the markdown of a webpage.
+
+<input>
+You will be given a query and the markdown of a webpage that has been filtered to remove noise and advertising content.
+</input>
+
+<instructions>
+- You are tasked to extract information from the webpage that is relevant to the query.
+- You should ONLY use the information available in the webpage to answer the query. Do not make up information or provide guess from your own knowledge.
+- If the information relevant to the query is not available in the page, your response should mention that.
+- If the query asks for all items, products, etc., make sure to directly list all of them.
+- If the content was truncated, note that more content may be available.
+</instructions>
+
+<output>
+- Your output should present ALL the information relevant to the query in a concise way.
+- Do not answer in conversational format - directly output the relevant information or that the information is unavailable.
+</output>`
+
+      const userPrompt = `<query>
+${query}
+</query>
+
+${truncated ? '<note>Content was truncated. More content may be available.</note>\n\n' : ''}<webpage_content>
+${content}
+</webpage_content>`
+
+      // Call LLM to extract
+      const extractedResult = await callModelAPI(model, [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt }
+      ])
+
+      // Format result like browser-use
+      const extractedContent = `<url>
+${pageUrl}
+</url>
+<query>
+${query}
+</query>
+<result>
+${extractedResult}
+</result>`
+
+      return {
+        success: true,
+        content: extractedContent
+      }
+    } catch (error) {
+      console.error('[Surfi] Extraction failed:', error)
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Extraction failed'
+      }
+    }
+  }
+
+  // Track agent action for new tab detection (before executing)
+  trackAgentAction(action.type)
+  
   // For content script actions, try with retries if disconnected
   const maxRetries = 3
   let lastError = ''
