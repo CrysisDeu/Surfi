@@ -5,7 +5,7 @@ interface PresetButtonsProps {
 }
 
 export function PresetButtons({ onSelectPreset }: PresetButtonsProps) {
-  const handlePresetClick = (provider: ModelFormData['provider'], overrides: Partial<{ name: string; model: string; apiKey: string }> = {}) => {
+  const handlePresetClick = (provider: ModelFormData['provider'], overrides: Partial<{ name: string; model: string; apiKey: string; apiEndpoint: string }> = {}) => {
     const formData = createEmptyFormData(provider)
     const finalFormData = {
       ...formData,
@@ -13,6 +13,7 @@ export function PresetButtons({ onSelectPreset }: PresetButtonsProps) {
       ...(overrides.name && { name: overrides.name }),
       ...(overrides.model && { model: overrides.model }),
       ...(overrides.apiKey && 'apiKey' in formData && { apiKey: overrides.apiKey }),
+      ...(overrides.apiEndpoint && 'apiEndpoint' in formData && { apiEndpoint: overrides.apiEndpoint }),
     } as ModelFormData
     onSelectPreset(finalFormData)
   }
@@ -21,7 +22,8 @@ export function PresetButtons({ onSelectPreset }: PresetButtonsProps) {
     { icon: '🟢', name: 'OpenAI', provider: 'openai' as const, displayName: 'OpenAI GPT-4' },
     { icon: '🟤', name: 'Anthropic', provider: 'anthropic' as const, displayName: 'Anthropic Claude' },
     { icon: '☁️', name: 'AWS Bedrock', provider: 'bedrock' as const, displayName: 'AWS Bedrock Claude Sonnet 4.5' },
-    { icon: '🦙', name: 'Ollama', provider: 'custom' as const, displayName: 'Ollama (Local)', model: 'llama2', apiKey: 'ollama' },
+    { icon: '🦙', name: 'Ollama', provider: 'custom' as const, displayName: 'Ollama (Local)', model: 'llama2', apiKey: 'ollama', apiEndpoint: 'http://localhost:11434/v1/chat/completions' },
+    { icon: '🎯', name: 'LM Studio', provider: 'custom' as const, displayName: 'LM Studio (Local)', model: '', apiKey: 'lm-studio', apiEndpoint: 'http://localhost:1234/v1/chat/completions' },
     { icon: '⚙️', name: 'Custom', provider: 'custom' as const, displayName: 'Custom Endpoint' },
   ]
 
@@ -35,6 +37,7 @@ export function PresetButtons({ onSelectPreset }: PresetButtonsProps) {
             name: preset.displayName,
             model: preset.model,
             apiKey: preset.apiKey,
+            apiEndpoint: preset.apiEndpoint,
           })}
         >
           <span className="preset-icon">{preset.icon}</span>

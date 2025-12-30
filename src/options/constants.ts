@@ -57,6 +57,14 @@ export const MODEL_PRESETS = {
     apiKey: 'ollama',
     model: 'llama2',
   },
+  lmstudio: {
+    id: 'lmstudio',
+    name: 'LM Studio (Local)',
+    provider: 'custom' as const,
+    apiEndpoint: 'http://localhost:1234/v1/chat/completions',
+    apiKey: 'lm-studio',
+    model: '',
+  },
   custom: {
     id: 'custom',
     name: 'Custom Endpoint',
