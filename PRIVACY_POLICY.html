@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Privacy Policy - Surfi</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.6;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            color: #333;
+            background: #fff;
+        }
+        h1 {
+            color: #1a73e8;
+            border-bottom: 2px solid #1a73e8;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #4285f4;
+            margin-top: 30px;
+        }
+        h3 {
+            color: #5f6368;
+            margin-top: 20px;
+        }
+        .last-updated {
+            color: #5f6368;
+            font-style: italic;
+            margin-bottom: 30px;
+        }
+        ul, ol {
+            margin: 10px 0;
+            padding-left: 30px;
+        }
+        li {
+            margin: 8px 0;
+        }
+        .summary {
+            background: #f8f9fa;
+            border-left: 4px solid #1a73e8;
+            padding: 20px;
+            margin: 30px 0;
+        }
+        .summary h3 {
+            margin-top: 0;
+            color: #1a73e8;
+        }
+        code {
+            background: #f1f3f4;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+        }
+        a {
+            color: #1a73e8;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+        .contact {
+            background: #e8f0fe;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>Privacy Policy for Surfi</h1>
+    <p class="last-updated"><strong>Last Updated:</strong> [Date]</p>
+
+    <h2>Introduction</h2>
+    <p>Surfi ("we," "our," or "us") is committed to protecting your privacy. This Privacy Policy explains how the Surfi Chrome extension ("Extension," "Service") collects, uses, stores, and protects your information.</p>
+    <p>By using Surfi, you agree to the collection and use of information in accordance with this policy.</p>
+
+    <h2>Information We Collect</h2>
+
+    <h3>1. User-Provided Information</h3>
+    <p><strong>API Keys and Credentials:</strong></p>
+    <ul>
+        <li>AI provider API keys (OpenAI, Anthropic, AWS Bedrock, or custom endpoints)</li>
+        <li>AWS credentials (Access Key ID, Secret Access Key, Region) for AWS Bedrock</li>
+        <li>Custom API endpoints and authentication tokens</li>
+    </ul>
+
+    <p><strong>Settings and Preferences:</strong></p>
+    <ul>
+        <li>Selected AI model and provider preferences</li>
+        <li>Agent configuration (max iterations, temperature, etc.)</li>
+        <li>Theme preferences (dark/light mode)</li>
+    </ul>
+
+    <p><strong>Chat History:</strong></p>
+    <ul>
+        <li>Messages you send to the AI assistant</li>
+        <li>AI responses and automation results</li>
+        <li>Conversation history</li>
+    </ul>
+
+    <h3>2. Automatically Collected Information</h3>
+    <p><strong>Page Content (Active Tabs Only):</strong></p>
+    <ul>
+        <li>DOM structure of pages you visit (only when you actively use the extension)</li>
+        <li>Page text content, titles, and URLs</li>
+        <li>Visible elements and interactive components</li>
+    </ul>
+
+    <p><strong>Browser Information:</strong></p>
+    <ul>
+        <li>Active tab information (URL, title)</li>
+        <li>Tab state for automation purposes</li>
+    </ul>
+
+    <p><strong>Note:</strong> The extension only accesses pages you actively visit and interact with. It does not access pages in the background or without your explicit interaction.</p>
+
+    <h2>How We Use Your Information</h2>
+
+    <h3>Primary Uses</h3>
+    <ol>
+        <li><strong>Browser Automation:</strong> Page content and DOM structure are analyzed to enable AI-powered automation of web interactions (clicking, typing, navigating, extracting information).</li>
+        <li><strong>AI Processing:</strong> Your commands and page content are sent to your configured AI provider to generate automation instructions. This includes:
+            <ul>
+                <li>Natural language commands you input</li>
+                <li>Page context (DOM structure, visible text) for AI analysis</li>
+                <li>Automation results and feedback</li>
+            </ul>
+        </li>
+        <li><strong>Extension Functionality:</strong>
+            <ul>
+                <li>Storing your preferences and settings</li>
+                <li>Maintaining chat history for your reference</li>
+                <li>Syncing settings across your Chrome browsers (via Chrome Sync)</li>
+            </ul>
+        </li>
+    </ol>
+
+    <h3>What We Do NOT Do</h3>
+    <ul>
+        <li>❌ We do not track your browsing behavior</li>
+        <li>❌ We do not collect analytics or usage statistics</li>
+        <li>❌ We do not sell or share your data with third parties (except your configured AI provider)</li>
+        <li>❌ We do not access pages you don't actively interact with</li>
+        <li>❌ We do not store page content permanently (only during active automation sessions)</li>
+    </ul>
+
+    <h2>Data Storage</h2>
+
+    <h3>Local Storage</h3>
+    <p><strong>Chrome Storage Sync (Encrypted):</strong></p>
+    <ul>
+        <li>API keys and credentials</li>
+        <li>Extension settings and preferences</li>
+        <li>Theme preferences</li>
+    </ul>
+    <p>This data is encrypted by Chrome and synced across your Chrome browsers when you're signed into Chrome.</p>
+
+    <p><strong>Chrome Storage Local:</strong></p>
+    <ul>
+        <li>Chat history (stored locally on your device, not synced)</li>
+    </ul>
+
+    <p><strong>Browser LocalStorage:</strong></p>
+    <ul>
+        <li>Theme preference (for immediate UI rendering)</li>
+    </ul>
+
+    <h3>Data Retention</h3>
+    <ul>
+        <li><strong>API Keys and Settings:</strong> Stored until you delete them or uninstall the extension</li>
+        <li><strong>Chat History:</strong> Stored locally until you clear it or uninstall the extension</li>
+        <li><strong>Page Content:</strong> Only processed during active automation sessions; not stored permanently</li>
+    </ul>
+
+    <h2>Data Sharing and Third Parties</h2>
+
+    <h3>AI Providers</h3>
+    <p>When you use Surfi, your data is shared with your configured AI provider:</p>
+    <ul>
+        <li><strong>OpenAI:</strong> If you use OpenAI models, your prompts and page content are sent to <code>api.openai.com</code></li>
+        <li><strong>Anthropic:</strong> If you use Claude models, your data is sent to <code>api.anthropic.com</code></li>
+        <li><strong>AWS Bedrock:</strong> If you use AWS Bedrock, your data is sent to your configured AWS region endpoint</li>
+        <li><strong>Custom Providers:</strong> If you configure a custom endpoint, your data is sent to that endpoint</li>
+    </ul>
+
+    <p><strong>Important:</strong> Each AI provider has its own privacy policy. We recommend reviewing their policies:</p>
+    <ul>
+        <li><a href="https://openai.com/policies/privacy-policy" target="_blank">OpenAI Privacy Policy</a></li>
+        <li><a href="https://www.anthropic.com/privacy" target="_blank">Anthropic Privacy Policy</a></li>
+        <li><a href="https://aws.amazon.com/privacy/" target="_blank">AWS Privacy Policy</a></li>
+    </ul>
+
+    <h3>No Other Third Parties</h3>
+    <p>We do not share your data with:</p>
+    <ul>
+        <li>Advertising networks</li>
+        <li>Analytics services</li>
+        <li>Data brokers</li>
+        <li>Any other third parties (except your configured AI provider)</li>
+    </ul>
+
+    <h2>Security Measures</h2>
+    <ol>
+        <li><strong>Encrypted Storage:</strong> API keys are stored in Chrome's encrypted sync storage</li>
+        <li><strong>Local Processing:</strong> All automation logic runs locally in your browser</li>
+        <li><strong>No Remote Code:</strong> The extension does not download or execute remote code</li>
+        <li><strong>HTTPS Only:</strong> All API communications use secure HTTPS connections</li>
+        <li><strong>User Control:</strong> You control which AI provider receives your data</li>
+    </ol>
+
+    <h2>Your Rights and Choices</h2>
+
+    <h3>Access and Control</h3>
+    <ul>
+        <li><strong>View Your Data:</strong> Access your settings and chat history through the extension's options page</li>
+        <li><strong>Delete Data:</strong> Clear chat history or remove API keys at any time through the extension settings</li>
+        <li><strong>Uninstall:</strong> Uninstalling the extension removes all locally stored data</li>
+    </ul>
+
+    <h3>API Key Management</h3>
+    <ul>
+        <li>You can add, edit, or remove API keys at any time</li>
+        <li>API keys are stored locally and encrypted by Chrome</li>
+        <li>Removing an API key immediately stops data transmission to that provider</li>
+    </ul>
+
+    <h3>Data Portability</h3>
+    <ul>
+        <li>Chat history is stored locally and can be accessed through Chrome's storage APIs</li>
+        <li>Settings can be exported by accessing Chrome's sync storage</li>
+    </ul>
+
+    <h2>Children's Privacy</h2>
+    <p>Surfi is not intended for users under the age of 13. We do not knowingly collect personal information from children under 13. If you are a parent or guardian and believe your child has provided us with personal information, please contact us.</p>
+
+    <h2>International Users</h2>
+    <p>If you are using Surfi from outside the United States, please note that:</p>
+    <ul>
+        <li>Your data may be processed in the country where your configured AI provider operates</li>
+        <li>Different privacy laws may apply depending on your location</li>
+        <li>By using Surfi, you consent to the transfer of your information to your configured AI provider's servers</li>
+    </ul>
+
+    <h2>Changes to This Privacy Policy</h2>
+    <p>We may update this Privacy Policy from time to time. We will notify you of any changes by:</p>
+    <ul>
+        <li>Updating the "Last Updated" date at the top of this policy</li>
+        <li>Posting a notice in the extension (for significant changes)</li>
+    </ul>
+    <p>Your continued use of Surfi after any changes constitutes acceptance of the updated policy.</p>
+
+    <h2>Contact Us</h2>
+    <div class="contact">
+        <p>If you have questions about this Privacy Policy or our data practices, please contact us:</p>
+        <ul>
+            <li><strong>GitHub:</strong> <a href="https://github.com/CrysisDeu/surfi" target="_blank">https://github.com/CrysisDeu/surfi</a></li>
+            <li><strong>Email:</strong> [Your contact email if applicable]</li>
+        </ul>
+    </div>
+
+    <h2>Compliance</h2>
+    <p>This Privacy Policy is designed to comply with:</p>
+    <ul>
+        <li>Chrome Web Store Developer Program Policies</li>
+        <li>General Data Protection Regulation (GDPR) principles</li>
+        <li>California Consumer Privacy Act (CCPA) principles</li>
+    </ul>
+
+    <div class="summary">
+        <h3>Summary</h3>
+        <p><strong>In simple terms:</strong></p>
+        <ul>
+            <li>Surfi stores your AI API keys and settings locally (encrypted)</li>
+            <li>When you use Surfi, your commands and page content are sent to your chosen AI provider</li>
+            <li>We don't track you, analyze your behavior, or share your data with anyone except your AI provider</li>
+            <li>You control all your data and can delete it anytime</li>
+            <li>All processing happens locally in your browser</li>
+        </ul>
+    </div>
+
+    <hr>
+    <p><strong>Effective Date:</strong> [Date of publication]<br>
+    <strong>Version:</strong> 1.0</p>
+</body>
+</html>
+
