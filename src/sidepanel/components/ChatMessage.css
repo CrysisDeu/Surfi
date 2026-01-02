@@ -3,7 +3,6 @@
   display: flex;
   gap: 12px;
   max-width: 90%;
-  white-space: pre-wrap;
 }
 
 .message-user {

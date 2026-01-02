@@ -235,30 +235,43 @@ function App() {
       <div className="messages-container">
         {messages.length === 0 ? (
           <div className="welcome-message">
-            <h2>🏄 Surfi Agent</h2>
-            <p>Ready to help.</p>
-
+            <h2>🏄 Welcome to Surfi</h2>
+            <p>I can <strong>see</strong>, <strong>interact</strong>, and <strong>navigate</strong> any webpage for you.</p>
+            
             <div className="capability-section">
-              <h3>Navigation</h3>
+              <h3>🔍 Multi-Step Research</h3>
               <div className="suggestion-buttons">
-                <button onClick={() => handleSendMessage('Go to google.com')}>Go to Google</button>
-                <button onClick={() => handleSendMessage('Scroll down')}>Scroll Down</button>
+                <button onClick={() => handleSendMessage('Find the top 3 news stories today and summarize each one')}>Top 3 news today</button>
+                <button onClick={() => handleSendMessage('Search for the best restaurants nearby and compare their ratings')}>Find & compare restaurants</button>
+                <button onClick={() => handleSendMessage('Look up this product on 3 different sites and compare prices')}>Compare prices</button>
               </div>
             </div>
 
             <div className="capability-section">
+              <h3>📖 Read & Analyze</h3>
+              <div className="suggestion-buttons">
+                <button onClick={() => handleSendMessage('Summarize this page for me')}>Summarize this page</button>
+                <button onClick={() => handleSendMessage('What are the pros and cons mentioned here?')}>Pros & cons</button>
+                <button onClick={() => handleSendMessage('Extract all the key points from this article')}>Key points</button>
+              </div>
+            </div>
+
+            <div className="capability-section">
+              <h3>🖱️ Click, Type & Interact</h3>
               <h3>Analysis</h3>
               <div className="suggestion-buttons">
-                <button onClick={() => handleSendMessage('Summarize this page')}>Summarize Page</button>
-                <button onClick={() => handleSendMessage('Analyze the sentiment of this article')}>Analyze Sentiment</button>
+                <button onClick={() => handleSendMessage('Fill out the form on this page with test data')}>Fill out form</button>
+                <button onClick={() => handleSendMessage('Search for "AI tools" using the search box')}>Search the page</button>
+                <button onClick={() => handleSendMessage('Click the sign up button and start the registration')}>Start signup</button>
               </div>
             </div>
 
             <div className="capability-section">
-              <h3>Data</h3>
+              <h3>🔄 Navigate & Multi-Tab</h3>
               <div className="suggestion-buttons">
-                <button onClick={() => handleSendMessage('Extract main content from this page')}>Extract Content</button>
-                <button onClick={() => handleSendMessage('Find all links on this page')}>Find Links</button>
+                <button onClick={() => handleSendMessage('Open all the links in this article and summarize each one')}>Read all links</button>
+                <button onClick={() => handleSendMessage('Switch to my other tab and tell me what it\'s about')}>Check other tab</button>
+                <button onClick={() => handleSendMessage('Find the contact page and extract the email address')}>Find contact info</button>
               </div>
             </div>
 
