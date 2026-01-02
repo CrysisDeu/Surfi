@@ -85,6 +85,12 @@ export function setupTabListeners(): void {
             chrome.tabs.update(tab.id, { active: true }).catch(err => {
               console.warn(`[Surfi] Could not activate tab ${tab.id}:`, err)
             })
+            // Add the new tab to the agent's tab group
+            if (agentTabGroupId !== null) {
+              chrome.tabs.group({ tabIds: [tab.id], groupId: agentTabGroupId }).catch(err => {
+                console.warn(`[Surfi] Could not add tab to group:`, err)
+              })
+            }
           }
         }
       }
@@ -187,7 +193,107 @@ export async function closeTab(tabId: number): Promise<{ success: boolean; error
   }
 }
 
-// Stubs for missing functions enabling build
-export async function createAgentTabGroup(_tabId: number) { return { groupId: 1 } }
-export async function cleanupAgentTabGroup(_action: string) { }
-export function hasTabGroupSupport() { return true }
+// ============================================================================
+// Tab Group Management (Chrome Tab Groups API)
+// ============================================================================
+
+// Track the agent's tab group
+let agentTabGroupId: number | null = null
+
+/**
+ * Check if Chrome tab groups are supported
+ * Tab groups are available in Chrome 88+ but not in Firefox
+ */
+export function hasTabGroupSupport(): boolean {
+  return typeof chrome.tabs.group === 'function' && typeof chrome.tabGroups !== 'undefined'
+}
+
+/**
+ * Create a tab group for the agent's tabs
+ * This groups the initial tab and any new tabs the agent opens
+ */
+export async function createAgentTabGroup(tabId: number): Promise<{ groupId: number } | null> {
+  if (!hasTabGroupSupport()) {
+    console.log('[Surfi] Tab groups not supported in this browser')
+    return null
+  }
+
+  try {
+    // Create a new tab group with the given tab
+    const groupId = await chrome.tabs.group({ tabIds: [tabId] })
+
+    // Customize the group appearance
+    await chrome.tabGroups.update(groupId, {
+      title: 'Surfi Agent',
+      color: 'blue',
+      collapsed: false
+    })
+
+    agentTabGroupId = groupId
+    console.log(`[Surfi] Created tab group ${groupId} with tab ${tabId}`)
+
+    return { groupId }
+  } catch (error) {
+    console.error('[Surfi] Failed to create tab group:', error)
+    return null
+  }
+}
+
+/**
+ * Add a tab to the agent's existing group
+ */
+export async function addTabToAgentGroup(tabId: number): Promise<boolean> {
+  if (!hasTabGroupSupport() || agentTabGroupId === null) {
+    return false
+  }
+
+  try {
+    await chrome.tabs.group({ tabIds: [tabId], groupId: agentTabGroupId })
+    console.log(`[Surfi] Added tab ${tabId} to agent group ${agentTabGroupId}`)
+    return true
+  } catch (error) {
+    console.warn(`[Surfi] Could not add tab ${tabId} to group:`, error)
+    return false
+  }
+}
+
+/**
+ * Cleanup the agent's tab group
+ * @param action - 'ungroup' to just ungroup tabs, 'close' to close all tabs in group
+ */
+export async function cleanupAgentTabGroup(action: 'ungroup' | 'close' = 'ungroup'): Promise<void> {
+  if (!hasTabGroupSupport() || agentTabGroupId === null) {
+    return
+  }
+
+  try {
+    // Get all tabs in the agent's group
+    const tabs = await chrome.tabs.query({ groupId: agentTabGroupId })
+    const tabIds = tabs.map(t => t.id).filter((id): id is number => id !== undefined)
+
+    if (action === 'close') {
+      // Close all tabs in the group
+      if (tabIds.length > 0) {
+        await chrome.tabs.remove(tabIds)
+      }
+    } else {
+      // Just ungroup the tabs
+      if (tabIds.length > 0) {
+        await chrome.tabs.ungroup(tabIds)
+      }
+    }
+
+    console.log(`[Surfi] Cleaned up tab group ${agentTabGroupId} (${action})`)
+    agentTabGroupId = null
+  } catch (error) {
+    console.error('[Surfi] Failed to cleanup tab group:', error)
+    agentTabGroupId = null
+  }
+}
+
+/**
+ * Get the current agent tab group ID
+ */
+export function getAgentTabGroupId(): number | null {
+  return agentTabGroupId
+}

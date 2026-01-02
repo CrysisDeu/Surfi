@@ -3,7 +3,7 @@
 
 import type { ChatRequest, Settings, ModelConfig, UIMessage } from '../../types'
 import { hasValidCredentials } from '../providers'
-import { agentFocusTabId, createAgentTabGroup, cleanupAgentTabGroup, hasTabGroupSupport, getTabsInfo } from '../tab-manager'
+import { agentFocusTabId, createAgentTabGroup, cleanupAgentTabGroup, hasTabGroupSupport, getTabsInfo, getAgentTabGroupId } from '../tab-manager'
 import { getPageContext, getPageContextWithRetry, type PageContext } from '../browser'
 import { executeAction, toolInputToAction } from '../controller'
 import { allBrowserTools } from '../tools/browser-tools'
@@ -150,9 +150,16 @@ export async function handleAgentLoop(request: ChatRequest, port: chrome.runtime
     }
   }
 
-  // Create agent tab group for isolation
+  // Get or create task ID - always reuse existing if available
+  const storageResult = await chrome.storage.local.get('latest_surfi_task_id')
+  const existingTaskId = storageResult.latest_surfi_task_id as string | undefined
+  const taskId = existingTaskId || `surfi_task_${Date.now()}`
+
+  // Create agent tab group for isolation - ONLY if no tab group exists yet (in-memory check)
+  // This uses getAgentTabGroupId() to check if we already have an active group in this service worker session
   let tabGroup: Awaited<ReturnType<typeof createAgentTabGroup>> | null = null
-  if (targetTabId) {
+  const currentGroupId = getAgentTabGroupId()
+  if (targetTabId && currentGroupId === null) {
     tabGroup = await createAgentTabGroup(targetTabId)
     if (tabGroup) {
       console.log(`[Surfi] Agent operating in tab group ${tabGroup.groupId}`)
@@ -163,7 +170,7 @@ export async function handleAgentLoop(request: ChatRequest, port: chrome.runtime
           id: `${Date.now()}_tab_group`,
           type: 'system',
           role: 'system',
-          content: `🏷️ Agent created tab group "${hasTabGroupSupport() ? '🤖 Surfi Agent' : '(fallback mode)'}". All new tabs will be grouped together.`,
+          content: `Agent created tab group "${hasTabGroupSupport() ? 'Surfi Agent' : '(fallback mode)'}". All new tabs will be grouped together.`,
           timestamp: Date.now()
         }
       })
@@ -184,10 +191,6 @@ export async function handleAgentLoop(request: ChatRequest, port: chrome.runtime
   messageManager.addInitialTaskMessage(latestUserMessage)
 
   // Create MessageStateHandler (cline style dual-store)
-  // Use existing task ID if available, otherwise create new one
-  const storageResult = await chrome.storage.local.get('latest_surfi_task_id')
-  const existingTaskId = storageResult.latest_surfi_task_id as string | undefined
-  const taskId = existingTaskId || `surfi_task_${Date.now()}`
   const messageStateHandler = new MessageStateHandler(taskId)
   await messageStateHandler.loadState()
 
