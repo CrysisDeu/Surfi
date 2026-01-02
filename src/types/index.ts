@@ -1,3 +1,4 @@
+
 // Re-export all types from split modules
 export type {
   Message,
@@ -7,6 +8,7 @@ export type {
   InteractiveElement,
   ActionRequest,
   ActionResult,
+  UIMessage,
 } from './messages'
 
 export type {
@@ -18,3 +20,10 @@ export type {
   ModelProvider,
   Settings,
 } from './models'
+
+export interface TaskMetadata {
+  id: string
+  timestamp: number
+  preview: string
+  messageCount: number
+}

@@ -18,15 +18,43 @@ chrome.action.onClicked.addListener((tab) => {
   }
 })
 
+
+// Track the active sidepanel port
+let activeSidePanelPort: chrome.runtime.Port | null = null
+
 // Handle streaming connections (ReAct agent loop)
 chrome.runtime.onConnect.addListener((port) => {
   if (port.name === 'chat-stream') {
+    activeSidePanelPort = port
+
+    port.onDisconnect.addListener(() => {
+      if (activeSidePanelPort === port) {
+        activeSidePanelPort = null
+      }
+    })
+
     port.onMessage.addListener(async (request) => {
       if (request.type === 'CHAT_MESSAGE_STREAM') {
+        // Create a port delegate that always uses the latest active port
+        const portDelegate = {
+          name: port.name,
+          disconnect: () => activeSidePanelPort?.disconnect(),
+          onMessage: port.onMessage,
+          onDisconnect: port.onDisconnect,
+          postMessage: (message: any) => {
+            try {
+              activeSidePanelPort?.postMessage(message)
+            } catch (e) {
+              console.error('Failed to send message to sidepanel:', e)
+            }
+          }
+        } as chrome.runtime.Port
+
         try {
-          await handleAgentLoop(request as ChatRequest, port)
+          // Pass the delegate so the agent always talks to the live panel
+          await handleAgentLoop(request as ChatRequest, portDelegate)
         } catch (error) {
-          port.postMessage({
+          activeSidePanelPort?.postMessage({
             type: 'error',
             error: error instanceof Error ? error.message : 'Unknown error',
           })
@@ -91,7 +119,7 @@ chrome.runtime.onInstalled.addListener(() => {
       chrome.storage.sync.set({ settings: DEFAULT_SETTINGS })
     }
   })
-  
+
   // Initialize tab tracking
   initializeTabTracking()
 })

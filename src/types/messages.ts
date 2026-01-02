@@ -47,3 +47,20 @@ export interface ActionResult {
   error?: string
   content?: string
 }
+
+export interface UIMessage {
+  id: string
+  type: 'text' | 'tool_use' | 'tool_result' | 'thinking' | 'system'
+  role: 'user' | 'assistant' | 'system'
+  content?: string
+  tool?: string
+  input?: Record<string, unknown>
+  output?: string
+  success?: boolean
+  error?: string
+  evaluation?: string
+  memory?: string
+  nextGoal?: string
+  stepNumber?: number
+  timestamp: number
+}
