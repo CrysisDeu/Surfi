@@ -3,7 +3,7 @@
 
 import type { ChatRequest, Settings, ModelConfig, UIMessage } from '../../types'
 import { hasValidCredentials } from '../providers'
-import { agentFocusTabId, createAgentTabGroup, cleanupAgentTabGroup, hasTabGroupSupport, getTabsInfo, getAgentTabGroupId } from '../tab-manager'
+import { agentFocusTabId, createAgentTabGroup, hasTabGroupSupport, getTabsInfo, getAgentTabGroupId } from '../tab-manager'
 import { getPageContext, getPageContextWithRetry, type PageContext } from '../browser'
 import { executeAction, toolInputToAction } from '../controller'
 import { allBrowserTools } from '../tools/browser-tools'
@@ -159,7 +159,10 @@ export async function handleAgentLoop(request: ChatRequest, port: chrome.runtime
   // This uses getAgentTabGroupId() to check if we already have an active group in this service worker session
   let tabGroup: Awaited<ReturnType<typeof createAgentTabGroup>> | null = null
   const currentGroupId = getAgentTabGroupId()
+  console.log(`[Surfi] Tab group check: targetTabId=${targetTabId}, currentGroupId=${currentGroupId}, hasSupport=${hasTabGroupSupport()}`)
+  
   if (targetTabId && currentGroupId === null) {
+    console.log(`[Surfi] Attempting to create tab group for tab ${targetTabId}`)
     tabGroup = await createAgentTabGroup(targetTabId)
     if (tabGroup) {
       console.log(`[Surfi] Agent operating in tab group ${tabGroup.groupId}`)
@@ -170,11 +173,15 @@ export async function handleAgentLoop(request: ChatRequest, port: chrome.runtime
           id: `${Date.now()}_tab_group`,
           type: 'system',
           role: 'system',
-          content: `Agent created tab group "${hasTabGroupSupport() ? 'Surfi Agent' : '(fallback mode)'}". All new tabs will be grouped together.`,
+          content: `Agent created tab group "Surfi Agent". All new tabs will be grouped together.`,
           timestamp: Date.now()
         }
       })
+    } else {
+      console.log(`[Surfi] Tab group creation returned null - check if tab groups are supported`)
     }
+  } else if (currentGroupId !== null) {
+    console.log(`[Surfi] Using existing tab group ${currentGroupId}`)
   }
 
   // Initialize message management (Browser-Use + Cline hybrid)
@@ -469,11 +476,11 @@ export async function handleAgentLoop(request: ChatRequest, port: chrome.runtime
     }
 
   } finally {
-    // Cleanup tab group when agent stops
+    // Tab group is intentionally NOT cleaned up here
+    // The group persists until user manually clears the chat or closes tabs
+    // This allows the user to see which tabs were created by the agent
     if (tabGroup) {
-      console.log('[Surfi] Cleaning up agent tab group')
-      // Ungroup tabs (keep them open) - user can manually close if desired
-      await cleanupAgentTabGroup('ungroup')
+      console.log(`[Surfi] Agent finished. Tab group ${tabGroup.groupId} will persist.`)
     }
   }
 
@@ -489,4 +496,3 @@ export async function handleChatMessage(
   // Keep existing implementation
   return { content: '', error: 'Not implemented' }
 }
-

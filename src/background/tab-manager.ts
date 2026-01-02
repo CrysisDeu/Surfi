@@ -202,10 +202,17 @@ let agentTabGroupId: number | null = null
 
 /**
  * Check if Chrome tab groups are supported
- * Tab groups are available in Chrome 88+ but not in Firefox
+ * Tab groups are available in Chrome 89+ (MV3) but not in Firefox
  */
 export function hasTabGroupSupport(): boolean {
-  return typeof chrome.tabs.group === 'function' && typeof chrome.tabGroups !== 'undefined'
+  // Check if both the tabs.group method and tabGroups API exist
+  // Using 'in' operator is more reliable than typeof for checking API existence
+  const hasGroupMethod = 'group' in chrome.tabs
+  const hasTabGroupsApi = 'tabGroups' in chrome
+  
+  console.log(`[Surfi] Tab group support check: chrome.tabs.group=${hasGroupMethod}, chrome.tabGroups=${hasTabGroupsApi}`)
+  
+  return hasGroupMethod && hasTabGroupsApi
 }
 
 /**
@@ -213,16 +220,23 @@ export function hasTabGroupSupport(): boolean {
  * This groups the initial tab and any new tabs the agent opens
  */
 export async function createAgentTabGroup(tabId: number): Promise<{ groupId: number } | null> {
+  console.log(`[Surfi] createAgentTabGroup called with tabId=${tabId}`)
+  
   if (!hasTabGroupSupport()) {
     console.log('[Surfi] Tab groups not supported in this browser')
+    console.log(`[Surfi] chrome.tabs.group exists: ${typeof chrome.tabs.group === 'function'}`)
+    console.log(`[Surfi] chrome.tabGroups exists: ${typeof chrome.tabGroups !== 'undefined'}`)
     return null
   }
 
   try {
+    console.log(`[Surfi] Calling chrome.tabs.group with tabIds=[${tabId}]`)
     // Create a new tab group with the given tab
     const groupId = await chrome.tabs.group({ tabIds: [tabId] })
+    console.log(`[Surfi] chrome.tabs.group returned groupId=${groupId}`)
 
     // Customize the group appearance
+    console.log(`[Surfi] Customizing tab group ${groupId}`)
     await chrome.tabGroups.update(groupId, {
       title: 'Surfi Agent',
       color: 'blue',
@@ -230,11 +244,12 @@ export async function createAgentTabGroup(tabId: number): Promise<{ groupId: num
     })
 
     agentTabGroupId = groupId
-    console.log(`[Surfi] Created tab group ${groupId} with tab ${tabId}`)
+    console.log(`[Surfi] Successfully created tab group ${groupId} with tab ${tabId}`)
 
     return { groupId }
   } catch (error) {
     console.error('[Surfi] Failed to create tab group:', error)
+    console.error('[Surfi] Error details:', JSON.stringify(error, Object.getOwnPropertyNames(error)))
     return null
   }
 }

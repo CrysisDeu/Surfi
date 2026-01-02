@@ -37,8 +37,8 @@
     "activeTab",
     "storage",
     "sidePanel",
-    "scripting",
-    "tabs"
+    "tabs",
+    "tabGroups"
   ],
   "host_permissions": [
     "<all_urls>"
