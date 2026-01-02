@@ -1,24 +1,29 @@
-import { useState, useRef, useEffect } from 'react'
+
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { ChatMessage } from './components/ChatMessage'
 import { ChatInput } from './components/ChatInput'
 import { Header } from './components/Header'
-import type { Message } from '../types'
+import { HistoryView } from './components/HistoryView'
+import type { UIMessage } from '../types'
 import './App.css'
 
 interface PromptDebug {
   stepNumber: number
-  systemPrompt: string
+  promptText: string
   url: string
   interactiveCount: number
+  messageCount?: number
+  totalChars?: number
   timestamp: number
 }
 
 function App() {
-  const [messages, setMessages] = useState<Message[]>([])
+  const [messages, setMessages] = useState<UIMessage[]>([])
   const [isLoading, setIsLoading] = useState(false)
-  const [streamingContent, setStreamingContent] = useState('')
   const [promptDebugList, setPromptDebugList] = useState<PromptDebug[]>([])
   const [showPromptDebug, setShowPromptDebug] = useState<number | null>(null)
+  const [showHistory, setShowHistory] = useState(false)
+
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const portRef = useRef<chrome.runtime.Port | null>(null)
 
@@ -28,215 +33,257 @@ function App() {
 
   useEffect(() => {
     scrollToBottom()
-  }, [messages, streamingContent])
+  }, [messages])
 
-  const handleSendMessage = async (content: string) => {
-    if (!content.trim() || isLoading) return
+  // Load History Logic
+  const loadHistory = useCallback(async () => {
+    try {
+      const meta = await chrome.storage.local.get('latest_surfi_task_id')
+      const latestTaskId = meta.latest_surfi_task_id as string
 
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      role: 'user',
-      content,
-      timestamp: Date.now(),
+      if (latestTaskId) {
+        const data = await chrome.storage.local.get(latestTaskId)
+        if (data && data[latestTaskId] && data[latestTaskId].uiMessages) {
+          setMessages(data[latestTaskId].uiMessages)
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load history:', error)
     }
+  }, [])
 
-    setMessages((prev) => [...prev, userMessage])
-    setIsLoading(true)
-    setStreamingContent('')
+  useEffect(() => {
+    loadHistory()
+  }, [loadHistory])
+
+  // ============================================================================
+  // Robust Port Management
+  // ============================================================================
+
+  // Define listener separately to re-use
+  const handlePortMessage = useCallback((message: any) => {
+    if (message.type === 'ui_message') {
+      const uiMsg = message.message as UIMessage
+      setMessages((prev) => {
+        if (prev.some(m => m.id === uiMsg.id)) return prev
+        return [...prev, uiMsg]
+      })
+
+      if (uiMsg.role === 'assistant' && (uiMsg.type === 'thinking' || uiMsg.type === 'tool_use')) {
+        setIsLoading(true)
+      }
+    }
+    else if (message.type === 'done') {
+      setIsLoading(false)
+    }
+    else if (message.type === 'prompt_debug') {
+      setPromptDebugList((prev) => {
+        if (prev.some(p => p.stepNumber === message.stepNumber)) return prev
+        return [...prev, {
+          stepNumber: message.stepNumber,
+          promptText: message.promptText || message.systemPrompt || '',
+          url: message.url,
+          interactiveCount: message.interactiveCount,
+          messageCount: message.messageCount,
+          totalChars: message.totalChars,
+          timestamp: Date.now(),
+        }]
+      })
+    }
+    else if (message.type === 'error') {
+      const errorMsg: UIMessage = {
+        id: Date.now().toString(),
+        type: 'text',
+        role: 'system',
+        content: `Error: ${message.error}`,
+        timestamp: Date.now()
+      }
+      setMessages(prev => [...prev, errorMsg])
+      setIsLoading(false)
+    }
+  }, [])
+
+  const connectPort = useCallback(() => {
+    if (portRef.current) return portRef.current
 
     try {
-      // Use streaming via chrome.runtime.connect
       const port = chrome.runtime.connect({ name: 'chat-stream' })
-      portRef.current = port
-      
-      let fullContent = ''
-      
-      port.onMessage.addListener((message) => {
-        if (message.type === 'prompt_debug') {
-          setPromptDebugList((prev) => [...prev, {
-            stepNumber: message.stepNumber,
-            systemPrompt: message.systemPrompt,
-            url: message.url,
-            interactiveCount: message.interactiveCount,
-            timestamp: Date.now(),
-          }])
-        } else if (message.type === 'chunk') {
-          fullContent += message.content
-          setStreamingContent(fullContent)
-        } else if (message.type === 'done') {
-          const assistantMessage: Message = {
-            id: (Date.now() + 1).toString(),
-            role: 'assistant',
-            content: fullContent,
-            timestamp: Date.now(),
-          }
-          setMessages((prev) => [...prev, assistantMessage])
-          setStreamingContent('')
-          setIsLoading(false)
-          portRef.current = null
-          port.disconnect()
-        } else if (message.type === 'error') {
-          const errorMessage: Message = {
-            id: (Date.now() + 1).toString(),
-            role: 'assistant',
-            content: `Error: ${message.error}`,
-            timestamp: Date.now(),
-          }
-          setMessages((prev) => [...prev, errorMessage])
-          setStreamingContent('')
-          setIsLoading(false)
-          portRef.current = null
-          port.disconnect()
-        }
-      })
+
+      port.onMessage.addListener(handlePortMessage)
 
       port.onDisconnect.addListener(() => {
+        console.log('Port disconnected')
         portRef.current = null
-        if (isLoading) {
-          setIsLoading(false)
-        }
+        setIsLoading(false)
       })
 
-      // Send the streaming message request
-      port.postMessage({
-        type: 'CHAT_MESSAGE_STREAM',
-        payload: {
-          messages: [...messages, userMessage],
-        },
-      })
-    } catch (error) {
-      console.error('Error sending message:', error)
-      const errorMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: `Error: ${error instanceof Error ? error.message : 'Failed to get response'}`,
-        timestamp: Date.now(),
+      portRef.current = port
+      return port
+    } catch (e) {
+      console.error('Failed to connect port:', e)
+      return null
+    }
+  }, [handlePortMessage])
+
+  // Initial connection
+  useEffect(() => {
+    connectPort()
+    return () => {
+      if (portRef.current) {
+        portRef.current.disconnect()
+        portRef.current = null
       }
-      setMessages((prev) => [...prev, errorMessage])
+    }
+  }, [connectPort])
+
+  // ============================================================================
+  // User Actions
+  // ============================================================================
+
+  const handleSendMessage = (content: string) => {
+    const msgForUi: UIMessage = {
+      id: Date.now().toString(),
+      type: 'text',
+      role: 'user',
+      content,
+      timestamp: Date.now()
+    }
+    setMessages(prev => [...prev, msgForUi])
+    setIsLoading(true)
+
+    const historyPayload = messages.map(m => ({
+      role: m.role,
+      content: m.content || (m.tool ? `Tool ${m.tool}` : ''),
+    }))
+
+    // Ensure connection
+    const port = connectPort()
+
+    if (port) {
+      try {
+        port.postMessage({
+          type: 'CHAT_MESSAGE_STREAM',
+          payload: {
+            messages: [...historyPayload, { role: 'user', content }]
+          }
+        })
+      } catch (e) {
+        console.error("Port error sending message", e)
+        setIsLoading(false)
+        setMessages(prev => [...prev, {
+          id: Date.now().toString(),
+          type: 'system',
+          role: 'system',
+          content: '❌ Connection error. Please try again.',
+          timestamp: Date.now()
+        }])
+      }
+    } else {
       setIsLoading(false)
     }
   }
 
-  const handleClearChat = () => {
+  const handleClearChat = async () => {
+    const meta = await chrome.storage.local.get('latest_surfi_task_id')
+    const latestTaskId = meta.latest_surfi_task_id
+    if (latestTaskId && typeof latestTaskId === 'string') {
+      await chrome.storage.local.remove(latestTaskId)
+    }
+    await chrome.storage.local.remove('latest_surfi_task_id')
+
     setMessages([])
-    setStreamingContent('')
     setPromptDebugList([])
     setShowPromptDebug(null)
   }
 
   const handleStopAgent = () => {
     if (portRef.current) {
-      // Save the streaming content as-is (without stop message)
-      if (streamingContent) {
-        const assistantMessage: Message = {
-          id: (Date.now() + 1).toString(),
-          role: 'assistant',
-          content: streamingContent,
-          timestamp: Date.now(),
-        }
-        setMessages((prev) => [...prev, assistantMessage])
-      }
-      
-      // Add stop notification as a separate system message
-      // This keeps concerns separated and avoids parsing issues
-      const stopMessage: Message = {
-        id: (Date.now() + 2).toString(),
-        role: 'system',
-        content: '⏹️ *Agent stopped by user*',
-        timestamp: Date.now(),
-      }
-      setMessages((prev) => [...prev, stopMessage])
-      
       portRef.current.disconnect()
       portRef.current = null
-      setStreamingContent('')
       setIsLoading(false)
+      setMessages(prev => [...prev, {
+        id: Date.now().toString(),
+        type: 'system',
+        role: 'system',
+        content: '⏹️ Disconnected from agent.',
+        timestamp: Date.now()
+      }])
     }
+  }
+
+  const handleLoadSession = async (taskId: string) => {
+    await chrome.storage.local.set({ 'latest_surfi_task_id': taskId })
+    loadHistory() // Re-use load logic
+    setShowHistory(false)
   }
 
   return (
     <div className="app">
-      <Header onClearChat={handleClearChat} />
-      
+      <Header
+        onClearChat={handleClearChat}
+        onHistory={() => setShowHistory(!showHistory)}
+      />
+
+      {showHistory && (
+        <HistoryView
+          onSelect={handleLoadSession}
+          onClose={() => setShowHistory(false)}
+        />
+      )}
+
       <div className="messages-container">
-        {messages.length === 0 && !streamingContent ? (
+        {messages.length === 0 ? (
           <div className="welcome-message">
-            <h2>🏄 Welcome to Surfi</h2>
-            <p>I can <strong>see</strong>, <strong>interact</strong>, and <strong>navigate</strong> any webpage for you.</p>
-            
+            <h2>🏄 Surfi Agent</h2>
+            <p>Ready to help.</p>
+
             <div className="capability-section">
-              <h3>🔍 Multi-Step Research</h3>
+              <h3>Navigation</h3>
               <div className="suggestion-buttons">
-                <button onClick={() => handleSendMessage('Find the top 3 news stories today and summarize each one')}>Top 3 news today</button>
-                <button onClick={() => handleSendMessage('Search for the best restaurants nearby and compare their ratings')}>Find & compare restaurants</button>
-                <button onClick={() => handleSendMessage('Look up this product on 3 different sites and compare prices')}>Compare prices</button>
+                <button onClick={() => handleSendMessage('Go to google.com')}>Go to Google</button>
+                <button onClick={() => handleSendMessage('Scroll down')}>Scroll Down</button>
               </div>
             </div>
 
             <div className="capability-section">
-              <h3>📖 Read & Analyze</h3>
+              <h3>Analysis</h3>
               <div className="suggestion-buttons">
-                <button onClick={() => handleSendMessage('Summarize this page for me')}>Summarize this page</button>
-                <button onClick={() => handleSendMessage('What are the pros and cons mentioned here?')}>Pros & cons</button>
-                <button onClick={() => handleSendMessage('Extract all the key points from this article')}>Key points</button>
+                <button onClick={() => handleSendMessage('Summarize this page')}>Summarize Page</button>
+                <button onClick={() => handleSendMessage('Analyze the sentiment of this article')}>Analyze Sentiment</button>
               </div>
             </div>
 
             <div className="capability-section">
-              <h3>🖱️ Click, Type & Interact</h3>
+              <h3>Data</h3>
               <div className="suggestion-buttons">
-                <button onClick={() => handleSendMessage('Fill out the form on this page with test data')}>Fill out form</button>
-                <button onClick={() => handleSendMessage('Search for "AI tools" using the search box')}>Search the page</button>
-                <button onClick={() => handleSendMessage('Click the sign up button and start the registration')}>Start signup</button>
+                <button onClick={() => handleSendMessage('Extract main content from this page')}>Extract Content</button>
+                <button onClick={() => handleSendMessage('Find all links on this page')}>Find Links</button>
               </div>
             </div>
 
-            <div className="capability-section">
-              <h3>🔄 Navigate & Multi-Tab</h3>
-              <div className="suggestion-buttons">
-                <button onClick={() => handleSendMessage('Open all the links in this article and summarize each one')}>Read all links</button>
-                <button onClick={() => handleSendMessage('Switch to my other tab and tell me what it\'s about')}>Check other tab</button>
-                <button onClick={() => handleSendMessage('Find the contact page and extract the email address')}>Find contact info</button>
-              </div>
-            </div>
           </div>
         ) : (
-          <>
-            {messages.map((message) => (
-              <ChatMessage key={message.id} message={message} />
-            ))}
-            {streamingContent && (
-              <ChatMessage
-                message={{
-                  id: 'streaming',
-                  role: 'assistant',
-                  content: streamingContent,
-                  timestamp: Date.now(),
-                }}
-              />
-            )}
-          </>
+          messages.map((message) => (
+            <ChatMessage key={message.id} message={message} />
+          ))
         )}
-        {isLoading && !streamingContent && (
+        {isLoading && (
           <div className="loading-indicator">
-            <span className="dot"></span>
-            <span className="dot"></span>
-            <span className="dot"></span>
+            <span className="dot"></span><span className="dot"></span><span className="dot"></span>
           </div>
         )}
         <div ref={messagesEndRef} />
       </div>
 
-      <ChatInput 
-        onSendMessage={handleSendMessage} 
-        isLoading={isLoading} 
+      <ChatInput
+        onSendMessage={handleSendMessage}
+        isLoading={isLoading}
         onStop={handleStopAgent}
       />
 
-      {/* Prompt Debug Panel */}
       {promptDebugList.length > 0 && (
         <div className="prompt-debug-fab">
-          <button 
+          <button
             className="prompt-debug-button"
             onClick={() => setShowPromptDebug(showPromptDebug === null ? promptDebugList.length - 1 : null)}
             title="View LLM Prompts"
@@ -252,45 +299,24 @@ function App() {
             <div className="prompt-debug-header">
               <h3>LLM Prompt - Step {promptDebugList[showPromptDebug].stepNumber}</h3>
               <div className="prompt-debug-nav">
-                <button 
+                <button
                   disabled={showPromptDebug === 0}
                   onClick={() => setShowPromptDebug(Math.max(0, showPromptDebug - 1))}
                 >
                   ◀ Prev
                 </button>
                 <span>{showPromptDebug + 1} / {promptDebugList.length}</span>
-                <button 
+                <button
                   disabled={showPromptDebug === promptDebugList.length - 1}
                   onClick={() => setShowPromptDebug(Math.min(promptDebugList.length - 1, showPromptDebug + 1))}
                 >
                   Next ▶
                 </button>
               </div>
-              <button 
-                className="copy-prompt-button"
-                onClick={() => {
-                  navigator.clipboard.writeText(promptDebugList[showPromptDebug].systemPrompt)
-                    .then(() => {
-                      // Show brief feedback
-                      const btn = document.querySelector('.copy-prompt-button')
-                      if (btn) {
-                        btn.textContent = '✓ Copied!'
-                        setTimeout(() => { btn.textContent = '📋 Copy' }, 1500)
-                      }
-                    })
-                }}
-                title="Copy prompt to clipboard"
-              >
-                📋 Copy
-              </button>
               <button className="close-button" onClick={() => setShowPromptDebug(null)}>✕</button>
             </div>
-            <div className="prompt-debug-meta">
-              <span>URL: {promptDebugList[showPromptDebug].url}</span>
-              <span>Elements: {promptDebugList[showPromptDebug].interactiveCount}</span>
-            </div>
             <pre className="prompt-debug-text">
-              {promptDebugList[showPromptDebug].systemPrompt}
+              {promptDebugList[showPromptDebug].promptText}
             </pre>
           </div>
         </div>

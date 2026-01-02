@@ -1,13 +1,15 @@
+
 import { useTheme } from '../../lib/theme-context'
 import './Header.css'
 
 interface HeaderProps {
   onClearChat: () => void
+  onHistory: () => void
 }
 
-export function Header({ onClearChat }: HeaderProps) {
+export function Header({ onClearChat, onHistory }: HeaderProps) {
   const { theme, toggleTheme } = useTheme()
-  
+
   const handleOpenOptions = () => {
     chrome.runtime.openOptionsPage()
   }
@@ -19,6 +21,16 @@ export function Header({ onClearChat }: HeaderProps) {
         <h1>Surfi</h1>
       </div>
       <div className="header-actions">
+        {/* History Toggle */}
+        <button
+          className="header-button"
+          onClick={onHistory}
+          title="History"
+          aria-label="View History"
+        >
+          <span role="img" aria-label="history" style={{ fontSize: '16px' }}>📜</span>
+        </button>
+
         <button
           className="header-button"
           onClick={toggleTheme}

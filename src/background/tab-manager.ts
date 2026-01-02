@@ -29,7 +29,7 @@ export async function initializeTabTracking(): Promise<void> {
   // Get all existing tabs
   const tabs = await chrome.tabs.query({})
   managedTabs.clear()
-  
+
   for (const tab of tabs) {
     if (tab.id) {
       managedTabs.set(tab.id, {
@@ -41,13 +41,13 @@ export async function initializeTabTracking(): Promise<void> {
       })
     }
   }
-  
+
   // Set initial agent focus to the active tab in the current window
   const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true })
   if (activeTab?.id) {
     agentFocusTabId = activeTab.id
   }
-  
+
   console.log(`[Surfi] Tab tracking initialized: ${managedTabs.size} tabs, agent focus: ${agentFocusTabId}`)
 }
 
@@ -71,7 +71,7 @@ export function setupTabListeners(): void {
         isActive: tab.active || false,
       })
       console.log(`[Surfi] Tab created: ${tab.id} - ${tab.url}`)
-      
+
       // Auto-switch agent focus if tab was created shortly after an agent action
       // (e.g., clicking a link that opens in new tab)
       if (recentAgentAction) {
@@ -94,7 +94,7 @@ export function setupTabListeners(): void {
   chrome.tabs.onRemoved.addListener((tabId) => {
     managedTabs.delete(tabId)
     console.log(`[Surfi] Tab removed: ${tabId}`)
-    
+
     // If agent was focused on this tab, switch focus to another tab
     if (agentFocusTabId === tabId) {
       const remainingTabs = Array.from(managedTabs.values())
@@ -141,7 +141,7 @@ export function setupTabListeners(): void {
 export function getTabsInfo(): string {
   const tabs = Array.from(managedTabs.values())
   if (tabs.length === 0) return 'No tabs open'
-  
+
   return tabs.map(t => {
     const focusMarker = t.id === agentFocusTabId ? '→ ' : '  '
     const activeMarker = t.isActive ? ' [active]' : ''
@@ -156,17 +156,17 @@ export async function switchAgentFocus(tabId: number): Promise<{ success: boolea
   if (!managedTabs.has(tabId)) {
     return { success: false, error: `Tab ${tabId} not found` }
   }
-  
+
   const tab = managedTabs.get(tabId)
   agentFocusTabId = tabId
-  
+
   // Also activate the tab in Chrome so user can see it
   try {
     await chrome.tabs.update(tabId, { active: true })
   } catch (error) {
     console.warn(`[Surfi] Could not activate tab ${tabId}:`, error)
   }
-  
+
   console.log(`[Surfi] Agent focus switched to tab ${tabId}`)
   return { success: true, content: `Switched to tab ${tabId}: ${tab?.title || tab?.url || 'unknown'}` }
 }
@@ -176,7 +176,7 @@ export async function closeTab(tabId: number): Promise<{ success: boolean; error
   if (!managedTabs.has(tabId)) {
     return { success: false, error: `Tab ${tabId} not found` }
   }
-  
+
   const tab = managedTabs.get(tabId)
   try {
     await chrome.tabs.remove(tabId)
@@ -186,3 +186,8 @@ export async function closeTab(tabId: number): Promise<{ success: boolean; error
     return { success: false, error: error instanceof Error ? error.message : 'Failed to close tab' }
   }
 }
+
+// Stubs for missing functions enabling build
+export async function createAgentTabGroup(_tabId: number) { return { groupId: 1 } }
+export async function cleanupAgentTabGroup(_action: string) { }
+export function hasTabGroupSupport() { return true }
