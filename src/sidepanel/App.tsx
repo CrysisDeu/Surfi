@@ -4,6 +4,7 @@ import { ChatMessage } from './components/ChatMessage'
 import { ChatInput } from './components/ChatInput'
 import { Header } from './components/Header'
 import { HistoryView } from './components/HistoryView'
+import { AgentActivity } from './components/AgentActivity'
 import type { UIMessage } from '../types'
 import './App.css'
 
@@ -174,7 +175,7 @@ function App() {
           id: Date.now().toString(),
           type: 'system',
           role: 'system',
-          content: '❌ Connection error. Please try again.',
+          content: 'Connection error. Please try again.',
           timestamp: Date.now()
         }])
       }
@@ -205,7 +206,7 @@ function App() {
         id: Date.now().toString(),
         type: 'system',
         role: 'system',
-        content: '⏹️ Disconnected from agent.',
+        content: 'Disconnected from agent.',
         timestamp: Date.now()
       }])
     }
@@ -263,9 +264,40 @@ function App() {
 
           </div>
         ) : (
-          messages.map((message) => (
-            <ChatMessage key={message.id} message={message} />
-          ))
+          (() => {
+            const renderedElements: React.ReactNode[] = []
+            let currentGroup: UIMessage[] = []
+
+            const flushGroup = (isActive: boolean) => {
+              if (currentGroup.length > 0) {
+                renderedElements.push(
+                  <AgentActivity
+                    key={`group-${currentGroup[0].id}`}
+                    messages={[...currentGroup]}
+                    isActive={isActive}
+                  />
+                )
+                currentGroup = []
+              }
+            }
+
+            messages.forEach((msg) => {
+              const isProcessMsg = ['thinking', 'tool_use', 'tool_result'].includes(msg.type)
+
+              if (isProcessMsg) {
+                currentGroup.push(msg)
+              } else {
+                // End of a group (if any exists)
+                flushGroup(false)
+                renderedElements.push(<ChatMessage key={msg.id} message={msg} />)
+              }
+            })
+
+            // Flush active group at the end
+            flushGroup(isLoading)
+
+            return renderedElements
+          })()
         )}
         {isLoading && (
           <div className="loading-indicator">

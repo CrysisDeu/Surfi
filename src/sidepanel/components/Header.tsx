@@ -17,7 +17,14 @@ export function Header({ onClearChat, onHistory }: HeaderProps) {
   return (
     <header className="header">
       <div className="header-title">
-        <span className="header-icon">🏄</span>
+        <span className="header-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="m9 18 3-7 3 7"></path>
+            <path d="m17 18 3-7 3 7"></path>
+            <path d="M4 15c7-5 12-5 15.5 2"></path>
+            <path d="M21 1.5a1 1 0 0 0-1 1A8.5 8.5 0 0 1 11.5 11 8.5 8.5 0 0 1 3 2.5a1 1 0 0 0-1-1"></path>
+          </svg>
+        </span>
         <h1>Surfi</h1>
       </div>
       <div className="header-actions">
@@ -28,7 +35,10 @@ export function Header({ onClearChat, onHistory }: HeaderProps) {
           title="History"
           aria-label="View History"
         >
-          <span role="img" aria-label="history" style={{ fontSize: '16px' }}>📜</span>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M3 3v18h18"></path>
+            <path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3"></path>
+          </svg>
         </button>
 
         <button

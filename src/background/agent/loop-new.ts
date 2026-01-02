@@ -184,8 +184,12 @@ export async function handleAgentLoop(request: ChatRequest, port: chrome.runtime
   messageManager.addInitialTaskMessage(latestUserMessage)
 
   // Create MessageStateHandler (cline style dual-store)
-  const taskId = `task_${Date.now()}`
-  const messageStateHandler = new MessageStateHandler(`surfi_task_${taskId}`)
+  // Use existing task ID if available, otherwise create new one
+  const storageResult = await chrome.storage.local.get('latest_surfi_task_id')
+  const existingTaskId = storageResult.latest_surfi_task_id as string | undefined
+  const taskId = existingTaskId || `surfi_task_${Date.now()}`
+  const messageStateHandler = new MessageStateHandler(taskId)
+  await messageStateHandler.loadState()
 
   // Note: User message is already added by the frontend (App.tsx)
   // We only store it in MessageStateHandler for persistence
