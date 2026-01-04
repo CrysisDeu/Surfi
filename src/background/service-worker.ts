@@ -2,8 +2,8 @@
 // Thin orchestrator that delegates to specialized modules
 
 import type { ChatRequest } from '../types'
-import { handleAgentLoop, handleChatMessage } from './agent'
-import { initializeTabTracking, setupTabListeners } from './tab-manager'
+import { handleAgentLoop, handleChatMessage, clearMessageManager } from './agent'
+import { initializeTabTracking, setupTabListeners, cleanupAgentTabGroup } from './tab-manager'
 import { getPageContext } from './browser'
 import { executeAction } from './controller'
 
@@ -70,6 +70,17 @@ chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
     handleChatMessage(request as ChatRequest)
       .then(sendResponse)
       .catch((error: Error) => sendResponse({ error: error.message }))
+    return true
+  }
+
+  if (request.type === 'CLEAR_TASK') {
+    // Clear in-memory MessageManager for the task
+    if (request.taskId) {
+      clearMessageManager(request.taskId)
+      cleanupAgentTabGroup()
+      console.log(`[Surfi] Cleared MessageManager for task ${request.taskId}`)
+    }
+    sendResponse({ success: true })
     return true
   }
 

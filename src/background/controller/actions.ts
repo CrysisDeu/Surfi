@@ -3,7 +3,7 @@
 
 import { switchAgentFocus, closeTab, setAgentFocusTabId, trackAgentAction } from '../tab-manager'
 import { callModelAPI, hasValidCredentials } from '../providers'
-import { getActiveModel } from '../agent/loop'
+import { getActiveModel } from '../agent'
 
 // Browser-use style action types
 export interface ActionParams {

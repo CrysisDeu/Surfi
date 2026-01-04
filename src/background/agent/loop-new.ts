@@ -12,6 +12,34 @@ import { MessageStateHandler } from './message-state'
 import { LLMClient } from './llm-client'
 
 // ============================================================================
+// Session Management - Keep MessageManager alive per task
+// ============================================================================
+
+// In-memory store of active MessageManagers (keyed by taskId)
+const activeMessageManagers = new Map<string, MessageManager>()
+
+/**
+ * Get or create MessageManager for a task
+ */
+function getOrCreateMessageManager(taskId: string): { manager: MessageManager; isNew: boolean } {
+  const existing = activeMessageManagers.get(taskId)
+  if (existing) {
+    return { manager: existing, isNew: false }
+  }
+  
+  const newManager = new MessageManager()
+  activeMessageManagers.set(taskId, newManager)
+  return { manager: newManager, isNew: true }
+}
+
+/**
+ * Clear MessageManager when task is cleared
+ */
+export function clearMessageManager(taskId: string): void {
+  activeMessageManagers.delete(taskId)
+}
+
+// ============================================================================
 // System Prompt Building
 // ============================================================================
 
@@ -188,14 +216,19 @@ export async function handleAgentLoop(request: ChatRequest, port: chrome.runtime
   const userMessages = request.payload.messages.filter(m => m.role === 'user')
   const latestUserMessage = userMessages[userMessages.length - 1]?.content || ''
 
-  // Create MessageManager (Cline-style conversation accumulation)
-  const messageManager = new MessageManager()
+  // Get or create MessageManager for this task (reused across same session)
+  const { manager: messageManager, isNew } = getOrCreateMessageManager(taskId)
 
-  // Set system prompt (instructions + tools)
-  messageManager.setSystemMessage(buildSystemPrompt())
-
-  // Add initial task as first user message in conversation
-  messageManager.addInitialTaskMessage(latestUserMessage)
+  if (isNew) {
+    // First message in this task - set up system prompt and initial task
+    messageManager.setSystemMessage(buildSystemPrompt())
+    messageManager.addInitialTaskMessage(latestUserMessage)
+    console.log(`[Surfi] Created new MessageManager for task ${taskId}`)
+  } else {
+    // Follow-up message - add to existing conversation
+    messageManager.addFollowUpTaskMessage(latestUserMessage)
+    console.log(`[Surfi] Reusing MessageManager for task ${taskId}, adding follow-up`)
+  }
 
   // Create MessageStateHandler (cline style dual-store)
   const messageStateHandler = new MessageStateHandler(taskId)

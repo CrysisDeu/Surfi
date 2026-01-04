@@ -1,5 +1,6 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react'
+import ReactMarkdown from 'react-markdown'
 import { ChatMessage } from './components/ChatMessage'
 import { ChatInput } from './components/ChatInput'
 import { Header } from './components/Header'
@@ -188,6 +189,8 @@ function App() {
     const meta = await chrome.storage.local.get('latest_surfi_task_id')
     const latestTaskId = meta.latest_surfi_task_id
     if (latestTaskId && typeof latestTaskId === 'string') {
+      // Notify background to clear in-memory state
+      await chrome.runtime.sendMessage({ type: 'CLEAR_TASK', taskId: latestTaskId })
       await chrome.storage.local.remove(latestTaskId)
     }
     await chrome.storage.local.remove('latest_surfi_task_id')
@@ -206,7 +209,7 @@ function App() {
         id: Date.now().toString(),
         type: 'system',
         role: 'system',
-        content: 'Disconnected from agent.',
+        content: 'Paused',
         timestamp: Date.now()
       }])
     }
@@ -280,33 +283,57 @@ function App() {
           (() => {
             const renderedElements: React.ReactNode[] = []
             let currentGroup: UIMessage[] = []
+            let groupFinalOutput: UIMessage | null = null
 
             const flushGroup = (isActive: boolean) => {
-              if (currentGroup.length > 0) {
+              if (currentGroup.length > 0 || groupFinalOutput) {
+                // Render as a unified assistant response
                 renderedElements.push(
-                  <AgentActivity
-                    key={`group-${currentGroup[0].id}`}
-                    messages={[...currentGroup]}
-                    isActive={isActive}
-                  />
+                  <div key={`response-${currentGroup[0]?.id || groupFinalOutput?.id}`} className="message message-assistant">
+                    <div className="message-avatar">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 1.98-3A2.5 2.5 0 0 1 9.5 2Z"></path>
+                        <path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-1.98-3A2.5 2.5 0 0 0 14.5 2Z"></path>
+                      </svg>
+                    </div>
+                    <div className="message-content">
+                      {currentGroup.length > 0 && (
+                        <AgentActivity
+                          messages={[...currentGroup]}
+                          isActive={isActive && !groupFinalOutput}
+                        />
+                      )}
+                      {groupFinalOutput && (
+                        <div className="message-text">
+                          <ReactMarkdown>{groupFinalOutput.content || ''}</ReactMarkdown>
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 )
                 currentGroup = []
+                groupFinalOutput = null
               }
             }
 
             messages.forEach((msg) => {
               const isProcessMsg = ['thinking', 'tool_use', 'tool_result'].includes(msg.type)
-
+              const isAssistantText = msg.role === 'assistant' && msg.type === 'text'
+              
               if (isProcessMsg) {
                 currentGroup.push(msg)
+              } else if (isAssistantText && currentGroup.length > 0) {
+                // This is the final output for the current process group
+                groupFinalOutput = msg
+                flushGroup(false)
               } else {
-                // End of a group (if any exists)
+                // User, system, or standalone assistant message
                 flushGroup(false)
                 renderedElements.push(<ChatMessage key={msg.id} message={msg} />)
               }
             })
 
-            // Flush active group at the end
+            // Flush any remaining active group
             flushGroup(isLoading)
 
             return renderedElements

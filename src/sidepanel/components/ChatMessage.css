@@ -2,7 +2,7 @@
 .message {
   display: flex;
   gap: 12px;
-  max-width: 90%;
+  max-width: 100%;
 }
 
 .message-user {
@@ -53,6 +53,8 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
+  flex: 1;
+  min-width: 0;  /* Allows content to shrink below intrinsic width */
 }
 
 .message-text {
@@ -60,12 +62,15 @@
   padding: 10px 14px;
   border-radius: 12px;
   word-break: break-word;
+  width: fit-content;
+  max-width: 100%;
 }
 
 .message-user .message-text {
   background-color: var(--accent);
   color: white;
   border-bottom-right-radius: 4px;
+  margin-left: auto;  /* Align to right */
 }
 
 .message-assistant .message-text {

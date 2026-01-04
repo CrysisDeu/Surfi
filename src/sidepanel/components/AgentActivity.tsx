@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import type { UIMessage } from '../../types'
 import { ChatMessage } from './ChatMessage'
 import './AgentActivity.css'
@@ -28,7 +29,7 @@ export function AgentActivity({ messages, isActive }: AgentActivityProps) {
     }
 
     return (
-        <div className={`agent-activity-container ${isActive ? 'active' : ''}`}>
+        <div className={`agent-activity-container ${isActive ? 'active' : ''} ${isExpanded ? 'expanded' : ''}`}>
             {/* Collapsed Header Line */}
             <div
                 className="agent-activity-header"
@@ -56,13 +57,21 @@ export function AgentActivity({ messages, isActive }: AgentActivityProps) {
             </div>
 
             {/* Expanded Content */}
-            {isExpanded && (
-                <div className="agent-activity-content">
-                    {messages.map((msg) => (
-                        <ChatMessage key={msg.id} message={msg} />
-                    ))}
-                </div>
-            )}
+            <AnimatePresence>
+                {isExpanded && (
+                    <motion.div
+                        className="agent-activity-content"
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.2, ease: 'easeInOut' }}
+                    >
+                        {messages.map((msg) => (
+                            <ChatMessage key={msg.id} message={msg} />
+                        ))}
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     )
 }

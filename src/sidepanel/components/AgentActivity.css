@@ -1,10 +1,15 @@
 .agent-activity-container {
-    margin: 8px 12px;
+    width: fit-content;
+    max-width: 100%;
     border: 1px solid var(--border-color, #e0e0e0);
     border-radius: 8px;
     background: var(--bg-secondary, #f8f9fa);
     overflow: hidden;
     transition: all 0.2s ease;
+}
+
+.agent-activity-container.expanded {
+    width: 100%;
 }
 
 .agent-activity-header {
@@ -70,6 +75,7 @@
     border-top: 1px solid var(--border-color, #e0e0e0);
     padding: 8px 0;
     background: var(--bg-primary, #ffffff);
+    overflow: hidden;
 }
 
 /* Override inner ChatMessage styles slightly if needed for nesting */
